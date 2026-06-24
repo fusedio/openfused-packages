@@ -1,0 +1,641 @@
+/* Extracted from index.html so BOTH consumers share one source:
+   - the bundle: main.tsx imports this file; esbuild emits CSS and
+     build.mjs folds it inline into static/widget.html;
+   - the app (spec/json-ui-app.md): imports it directly for native
+     rendering. */
+/* ============================================================
+   openfused JSON-UI widget — "Signal" design system.
+   Dark-only; self-contained bundle for the
+   MCP Apps sandbox. Fonts use system fallbacks — no external CDN
+   (Claude ignores resourceDomains; inline everything, §5).
+   ============================================================ */
+:root {
+  --ofw-bg:         #070a0f;
+  --ofw-bg-2:       #0a0e15;
+  --ofw-panel:      #0e131c;
+  --ofw-panel-2:    #11171f;
+  --ofw-card:       #0d1219;
+  --ofw-card-hi:    #121925;
+  --ofw-field:      #0a0e15;
+
+  --ofw-text:       #e7ecf3;
+  --ofw-text-dim:   #93a0b2;
+  --ofw-text-faint: #5a6678;
+
+  --ofw-accent:     #f5a623;   /* signature amber */
+  --ofw-accent-2:   #ffc861;
+  --ofw-accent-soft: rgba(245, 166, 35, 0.13);
+  --ofw-accent-line: rgba(245, 166, 35, 0.34);
+  --ofw-accent-glow: rgba(245, 166, 35, 0.40);
+
+  --ofw-danger:      #ff6470;
+  --ofw-danger-soft: rgba(255, 100, 112, 0.13);
+
+  --ofw-line:    rgba(130, 160, 200, 0.11);
+  --ofw-line-2:  rgba(130, 160, 200, 0.20);
+
+  /* chart series palette — amber-led, then a cool spread */
+  --ofw-series-1: #f5a623;
+  --ofw-series-2: #5ec8d8;
+  --ofw-series-3: #8a7cff;
+  --ofw-series-4: #4ade80;
+  --ofw-series-5: #f472b6;
+  --ofw-series-6: #60a5fa;
+  --ofw-series-7: #fb7185;
+  --ofw-series-8: #c084fc;
+
+  --ofw-radius:    10px;
+  --ofw-radius-sm: 7px;
+
+  --ofw-font-display: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  --ofw-font-body:    ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  --ofw-font-mono:    ui-monospace, "SF Mono", Menlo, "Cascadia Mono", monospace;
+}
+
+/* Page-level rules are scoped to body.ofw-page — the BUNDLE's body opts in
+   (index.html); the app imports this file for native rendering and must not
+   have its own chrome restyled (spec/json-ui-app.md). Component classes
+   (.ofw-*) and the --ofw-* vars are namespaced and safe everywhere. */
+body.ofw-page * { box-sizing: border-box; }
+html:has(> body.ofw-page), body.ofw-page { margin: 0; min-height: 100%; }
+
+body.ofw-page {
+  background-color: var(--ofw-bg);
+  color: var(--ofw-text);
+  font-family: var(--ofw-font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* atmosphere: a single soft amber wash, faint dot grid */
+  background-image:
+    radial-gradient(900px 480px at 88% -12%, rgba(245, 166, 35, 0.07), transparent 60%),
+    radial-gradient(700px 460px at 6% 0%, rgba(94, 200, 216, 0.045), transparent 55%),
+    radial-gradient(rgba(130, 160, 200, 0.05) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 22px 22px;
+  background-attachment: fixed;
+}
+
+body.ofw-page ::selection { background: var(--ofw-accent-soft); color: #fff3df; }
+
+body.ofw-page ::-webkit-scrollbar { width: 11px; height: 11px; }
+body.ofw-page ::-webkit-scrollbar-thumb {
+  background: rgba(130, 160, 200, 0.20);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 9px;
+}
+body.ofw-page ::-webkit-scrollbar-thumb:hover {
+  background: var(--ofw-accent-line); background-clip: padding-box;
+}
+
+body.ofw-page a { color: inherit; text-decoration: none; }
+
+/* ---------------- Widget root (the bundle page; the app provides its own) -- */
+body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
+
+/* ---------------- Dashboard / widget shell ---------------- */
+/* `isolation: isolate` confines the whole widget tree to ONE stacking context so
+   its internal z-indexes — chart layers, comment pins (~2.1e9), and especially
+   maplibre-gl's `z-index: 99999` panes/overlays — can never paint above app chrome
+   that lives outside it (modals/dialogs are body-portaled at z-50). Without this, a
+   map or chart can leak on top of the New task / New project modals. */
+.ofw-dashboard { display: flex; flex-direction: column; gap: 20px; isolation: isolate; }
+
+/* Task-board fill (the app Tasks surface passes the `fill` prop): the board's
+   card chain stretches to the dashboard height so the kanban columns reach the
+   bottom instead of stopping at the default fixed 32rem. Default (no --fill) is
+   untouched — other embeds (inbox, agent detail) keep the fixed-height board. */
+.ofw-card--task-board-fill { flex: 1 1 auto; height: 100%; min-height: 0; }
+.ofw-card--task-board-fill > .ofw-card__body { height: 100%; min-height: 0; }
+.ofw-dashboard__header { display: flex; flex-direction: column; gap: 4px; }
+.ofw-dashboard__title {
+  font-family: var(--ofw-font-display); font-weight: 700; font-size: 24px;
+  letter-spacing: -0.01em; margin: 0;
+}
+.ofw-dashboard__desc { color: var(--ofw-text-dim); font-size: 14px; margin: 0; }
+
+/* ---------------- Card chrome ---------------- */
+.ofw-card {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px 18px 18px;
+  background: var(--ofw-card);
+  border: 1px solid var(--ofw-line);
+  border-radius: var(--ofw-radius);
+  min-width: 0;
+}
+.ofw-card__title {
+  font-family: var(--ofw-font-display);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase;
+  color: var(--ofw-text-dim);
+}
+.ofw-card__body { min-width: 0; }
+.ofw-card--input { gap: 0; }
+.ofw-card--table .ofw-card__body { width: 100%; }
+/* Charts use recharts ResponsiveContainer (height: 100%), which needs a
+   DEFINITE parent height to measure — a `min-height` floor is NOT definite, so
+   in a content-sized card (e.g. the app's single-widget page, where no ancestor
+   has a fixed height) the percentage-height chain resolves to 0 and the chart
+   renders blank. Fix: make the body a flex COLUMN whose `flex-basis` is a
+   definite `height: 300px`. When the card is content-sized, the body resolves to
+   a definite 300px (so recharts can measure it); when the card has a configured
+   height (e.g. a config `height: 520px`), `flex-grow` expands the body past the
+   300px basis to fill it — so the configured height is honored and charts are
+   never capped at 300px. `.ofw-chart` is the flex child that fills the body. */
+.ofw-card--chart .ofw-card__body {
+  width: 100%;
+  display: flex; flex-direction: column;
+  flex: 1 1 auto; height: 300px; min-height: 300px;
+}
+
+/* ---------------- Charts ---------------- */
+.ofw-chart { flex: 1 1 auto; height: auto; min-height: 0; min-width: 0; font-family: var(--ofw-font-mono); }
+.ofw-chart .recharts-cartesian-axis-tick-value { font-family: var(--ofw-font-mono); }
+.ofw-chart .recharts-default-legend { font-family: var(--ofw-font-body); }
+
+/* ---------------- Image / iframe / raw HTML ---------------- */
+.ofw-image { display: block; border-radius: var(--ofw-radius-sm); }
+.ofw-iframe {
+  border-radius: var(--ofw-radius-sm); background: #fff;
+  box-shadow: inset 0 0 0 1px var(--ofw-line);
+}
+/* The invalid-src fallback reuses .ofw-iframe (→ white bg) but is plain text, so
+ * without its own colors it rendered white-on-white. Give it a readable dark
+ * error state. */
+.ofw-iframe-blocked {
+  background: var(--ofw-card);
+  color: var(--ofw-text-dim);
+  display: flex; align-items: center; justify-content: center;
+  min-height: 80px; padding: 16px; text-align: center;
+  font-family: var(--ofw-font-mono); font-size: 12px;
+}
+.ofw-html { font-family: var(--ofw-font-body); font-size: 14px; color: var(--ofw-text); line-height: 1.6; }
+
+/* ---------------- Markdown (.ofw-md) & Diff (.ofw-diff) ----------------
+ * Shared by the JSON-UI widgets (widgets/markdown.tsx, widgets/diff.tsx) AND the
+ * app task thread (app/src/ui/components/{Markdown,DiffRenderer}.tsx) — one
+ * implementation, two surfaces. THEME-PORTABLE: text color is INHERITED from the
+ * host (dark widget card OR the light/dark app thread); only spacing, structure,
+ * and translucent accents are set, so the same rules read correctly everywhere. */
+.ofw-md { font-family: var(--ofw-font-body); font-size: 14px; line-height: 1.6; color: inherit; word-break: break-word; }
+.ofw-md > :first-child { margin-top: 0; }
+.ofw-md > :last-child { margin-bottom: 0; }
+.ofw-md h1 { font-size: 1.4em; font-weight: 700; line-height: 1.25; margin: 0.8em 0 0.4em; }
+.ofw-md h2 { font-size: 1.2em; font-weight: 700; line-height: 1.3; margin: 0.8em 0 0.4em; }
+.ofw-md h3 { font-size: 1.05em; font-weight: 600; margin: 0.7em 0 0.3em; }
+.ofw-md h4 { font-size: 1em; font-weight: 600; margin: 0.6em 0 0.3em; }
+.ofw-md p { margin: 0.5em 0; }
+.ofw-md a { color: var(--ofw-accent, #2563eb); text-decoration: underline; }
+.ofw-md ul, .ofw-md ol { margin: 0.5em 0; padding-left: 1.5em; }
+.ofw-md li { margin: 0.15em 0; }
+.ofw-md li > ul, .ofw-md li > ol { margin: 0.15em 0; }
+.ofw-md blockquote { margin: 0.5em 0; padding-left: 0.8em; border-left: 3px solid currentColor; opacity: 0.8; }
+.ofw-md code { font-family: var(--ofw-font-mono); font-size: 0.86em; background: rgba(127, 135, 150, 0.18); padding: 0.1em 0.35em; border-radius: 4px; }
+.ofw-md pre { background: rgba(127, 135, 150, 0.14); padding: 0.7em 0.9em; border-radius: var(--ofw-radius-sm); overflow-x: auto; margin: 0.6em 0; }
+.ofw-md pre code { background: none; padding: 0; font-size: 0.82em; }
+.ofw-md hr { border: 0; border-top: 1px solid var(--ofw-line, rgba(127, 135, 150, 0.3)); margin: 0.9em 0; }
+.ofw-md table { border-collapse: collapse; margin: 0.6em 0; font-size: 0.92em; }
+.ofw-md th, .ofw-md td { border: 1px solid var(--ofw-line, rgba(127, 135, 150, 0.3)); padding: 0.3em 0.6em; text-align: left; }
+.ofw-md img { max-width: 100%; }
+
+.ofw-diff { font-family: var(--ofw-font-mono); font-size: 12px; color: inherit; }
+.ofw-diff__header { display: flex; align-items: center; gap: 6px; font-size: 11px; opacity: 0.75; margin-bottom: 6px; }
+.ofw-diff__label--old { text-decoration: line-through; }
+.ofw-diff__arrow { opacity: 0.6; }
+.ofw-diff__body { margin: 0; border: 1px solid var(--ofw-line, rgba(127, 135, 150, 0.25)); border-radius: var(--ofw-radius-sm); overflow-x: auto; line-height: 1.55; }
+.ofw-diff__line { display: flex; padding: 0 8px; }
+.ofw-diff__gutter { flex: 0 0 1.1em; user-select: none; opacity: 0.7; }
+.ofw-diff__text { white-space: pre-wrap; word-break: break-word; }
+.ofw-diff__line--add { background: rgba(63, 185, 80, 0.16); }
+.ofw-diff__line--del { background: rgba(248, 81, 73, 0.16); }
+.ofw-diff__line--hunk { background: rgba(127, 135, 150, 0.16); opacity: 0.85; }
+.ofw-diff__line--meta { opacity: 0.55; font-size: 11px; }
+.ofw-diff__empty { opacity: 0.7; font-size: 12px; }
+
+/* ---------------- In-card states ---------------- */
+.ofw-state {
+  display: flex; align-items: center; gap: 9px;
+  font-family: var(--ofw-font-mono); font-size: 12px;
+  padding: 14px 2px; min-height: 44px;
+}
+.ofw-state--loading { color: var(--ofw-text-dim); }
+.ofw-state--waiting { color: var(--ofw-text-faint); }
+.ofw-state--empty   { color: var(--ofw-text-faint); justify-content: center; }
+.ofw-state--error {
+  color: var(--ofw-danger);
+  background: var(--ofw-danger-soft);
+  border: 1px solid rgba(255, 100, 112, 0.3);
+  border-radius: var(--ofw-radius-sm);
+  padding: 10px 12px; align-items: flex-start;
+}
+.ofw-state__icon {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; font-size: 11px; font-weight: 700;
+}
+.ofw-state--error .ofw-state__icon {
+  border-radius: 4px; background: rgba(255,100,112,0.18);
+  border: 1px solid var(--ofw-danger);
+}
+.ofw-state--waiting .ofw-state__icon { color: var(--ofw-accent); animation: ofw-spin 3s linear infinite; }
+.ofw-error-msg { word-break: break-word; line-height: 1.5; }
+.ofw-param {
+  font-family: var(--ofw-font-mono); color: var(--ofw-accent);
+  background: var(--ofw-accent-soft); padding: 0 5px; border-radius: 4px;
+}
+
+.ofw-spinner {
+  width: 14px; height: 14px; flex: none; border-radius: 50%;
+  border: 2px solid var(--ofw-line-2); border-top-color: var(--ofw-accent);
+  animation: ofw-spin 0.7s linear infinite;
+}
+
+/* ---------------- Skeleton loaders (shared across the display widgets) ----------------
+   One look for every data-bound display widget while its query is in flight: shimmer
+   blocks shaped to the eventual content (bars / rows / lines / a metric). The
+   SkeletonState component (components/card.tsx) emits these; see specs/rendering.md. */
+.ofw-skeleton {
+  display: flex; flex-direction: column; align-items: stretch;
+  width: 100%; flex: 1 1 auto; min-height: 0; padding: 6px 2px; gap: 0;
+}
+.ofw-skeleton__shimmer {
+  background: linear-gradient(90deg,
+    var(--ofw-card-hi) 0%, var(--ofw-line-2) 50%, var(--ofw-card-hi) 100%);
+  background-size: 200% 100%;
+  border-radius: var(--ofw-radius-sm);
+  animation: ofw-shimmer 1.3s ease-in-out infinite;
+}
+.ofw-skeleton__chart {
+  display: flex; align-items: flex-end; gap: 10px;
+  width: 100%; flex: 1 1 auto; min-height: 120px;
+  border-bottom: 1px solid var(--ofw-line); padding-bottom: 1px;
+}
+.ofw-skeleton__bar { flex: 1 1 0; min-width: 0; border-radius: 4px 4px 0 0; }
+.ofw-skeleton__table { display: flex; flex-direction: column; gap: 9px; width: 100%; }
+.ofw-skeleton__row { height: 14px; width: 100%; }
+.ofw-skeleton__row:first-child { height: 16px; opacity: 0.85; }
+.ofw-skeleton__text { display: flex; flex-direction: column; gap: 11px; width: 100%; }
+.ofw-skeleton__line { height: 12px; }
+.ofw-skeleton__metric { display: flex; flex-direction: column; gap: 11px; }
+.ofw-skeleton__value { height: 34px; width: 55%; }
+.ofw-skeleton__label { height: 12px; width: 32%; }
+.ofw-skeleton__block { display: block; width: 100%; height: 100%; min-height: 80px; }
+
+@keyframes ofw-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ofw-skeleton__shimmer { animation: none; }
+}
+
+/* ---------------- Markdown (text) ---------------- */
+.ofw-md { font-family: var(--ofw-font-body); color: var(--ofw-text); font-size: 15px; line-height: 1.62; }
+.ofw-md > :first-child { margin-top: 0; }
+.ofw-md > :last-child { margin-bottom: 0; }
+.ofw-md h1, .ofw-md h2, .ofw-md h3, .ofw-md h4 {
+  font-family: var(--ofw-font-display); font-weight: 700; letter-spacing: -0.01em;
+  color: #f3f7fc; line-height: 1.25; margin: 0.9em 0 0.4em;
+}
+.ofw-md h1 { font-size: 25px; }
+.ofw-md h2 { font-size: 20px; }
+.ofw-md h3 { font-size: 16px; }
+.ofw-md p { margin: 0.5em 0; }
+.ofw-md a { color: var(--ofw-accent); border-bottom: 1px solid var(--ofw-accent-line); }
+.ofw-md a:hover { color: var(--ofw-accent-2); }
+.ofw-md strong { color: #f3f7fc; font-weight: 700; }
+.ofw-md code {
+  font-family: var(--ofw-font-mono); font-size: 0.87em; color: var(--ofw-accent);
+  background: var(--ofw-accent-soft); padding: 1px 6px; border-radius: 5px;
+}
+.ofw-md pre {
+  background: var(--ofw-field); border: 1px solid var(--ofw-line);
+  border-radius: var(--ofw-radius-sm); padding: 12px 14px; overflow: auto;
+}
+.ofw-md pre code { color: var(--ofw-text); background: none; padding: 0; }
+.ofw-md ul, .ofw-md ol { padding-left: 1.3em; margin: 0.5em 0; }
+.ofw-md li { margin: 0.22em 0; }
+.ofw-md blockquote {
+  margin: 0.6em 0; padding: 2px 14px; color: var(--ofw-text-dim);
+  border-left: 2px solid var(--ofw-accent-line);
+}
+.ofw-md table { border-collapse: collapse; font-size: 13px; }
+.ofw-md th, .ofw-md td { border: 1px solid var(--ofw-line); padding: 6px 10px; text-align: left; }
+
+/* ---------------- Fields (select / slider / text-input) ---------------- */
+.ofw-field { display: flex; flex-direction: column; gap: 9px; }
+.ofw-label {
+  font-family: var(--ofw-font-display);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ofw-text-dim);
+  display: flex; align-items: center; gap: 8px;
+}
+
+.ofw-input {
+  width: 100%;
+  font-family: var(--ofw-font-mono); font-size: 14px; color: var(--ofw-text);
+  background: var(--ofw-field);
+  border: 1px solid var(--ofw-line-2);
+  border-radius: var(--ofw-radius-sm);
+  padding: 10px 12px; outline: none;
+  transition: border-color 0.16s, box-shadow 0.16s, background 0.16s;
+  -webkit-appearance: none; appearance: none;
+}
+.ofw-input::placeholder { color: var(--ofw-text-faint); }
+.ofw-input:hover { border-color: var(--ofw-line-2); background-color: var(--ofw-card-hi); }
+.ofw-input:focus {
+  border-color: var(--ofw-accent-line);
+  background-color: var(--ofw-card-hi);
+  box-shadow: 0 0 0 1px var(--ofw-accent-line), 0 0 18px -8px var(--ofw-accent-glow);
+  caret-color: var(--ofw-accent);
+}
+
+/* ---------------- Button (action / submit) ---------------- */
+.ofw-btn {
+  font-family: var(--ofw-font-mono); font-size: 13px; color: var(--ofw-text-dim);
+  background: var(--ofw-panel); border: 1px solid var(--ofw-line);
+  border-radius: var(--ofw-radius-sm); padding: 8px 16px; cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease,
+    box-shadow 120ms ease;
+}
+.ofw-btn:hover:not(:disabled) { color: var(--ofw-text); border-color: var(--ofw-line-2); }
+.ofw-btn--primary {
+  color: #1a1206; background: var(--ofw-accent); border-color: var(--ofw-accent);
+  font-weight: 600;
+}
+.ofw-btn--primary:hover:not(:disabled) {
+  color: #1a1206; background: var(--ofw-accent-2); border-color: var(--ofw-accent-2);
+  box-shadow: 0 0 16px -6px var(--ofw-accent-glow);
+}
+/* brief feedback flash after a non-submit press */
+.ofw-btn--pressed,
+.ofw-btn--pressed:hover:not(:disabled) {
+  color: var(--ofw-accent); border-color: var(--ofw-accent);
+  background: var(--ofw-accent-soft);
+  box-shadow: 0 0 0 1px var(--ofw-accent-line), 0 0 14px -4px var(--ofw-accent-glow);
+}
+.ofw-btn--primary.ofw-btn--pressed,
+.ofw-btn--primary.ofw-btn--pressed:hover:not(:disabled) {
+  color: #1a1206; background: var(--ofw-accent-2); border-color: var(--ofw-accent-2);
+  box-shadow: 0 0 0 1px var(--ofw-accent-line), 0 0 14px -4px var(--ofw-accent-glow);
+}
+/* locked state after a submit (terminal) press */
+.ofw-btn:disabled { cursor: default; }
+.ofw-btn--submitted,
+.ofw-btn--submitted:disabled {
+  color: var(--ofw-accent); border-color: var(--ofw-accent-line);
+  background: var(--ofw-accent-soft); font-weight: 600;
+}
+
+/* ---------------- Video review (timestamped feedback) ---------------- */
+.ofw-card--vr .ofw-card__body { width: 100%; }
+.ofw-vr { display: flex; flex-direction: column; gap: 10px; outline: none; }
+.ofw-vr:focus-visible { box-shadow: 0 0 0 1px var(--ofw-accent-line); border-radius: var(--ofw-radius-sm); }
+.ofw-vr__video {
+  width: 100%; aspect-ratio: 16/9; object-fit: contain;
+  background: #000; border-radius: var(--ofw-radius-sm); cursor: pointer;
+}
+.ofw-vr__bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ofw-vr__spacer { flex: 1; }
+.ofw-vr__speeds { display: flex; gap: 4px; }
+.ofw-vr__ctl { padding: 4px 10px; font-size: 12px; }
+.ofw-vr__ctl--active,
+.ofw-vr__ctl--active:hover:not(:disabled) {
+  color: #1a1206; background: var(--ofw-accent); border-color: var(--ofw-accent);
+  font-weight: 600;
+}
+.ofw-vr__tc {
+  font-family: var(--ofw-font-mono); font-size: 12px; color: var(--ofw-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ofw-vr__tl { position: relative; padding-top: 10px; }
+.ofw-vr__markers { position: absolute; left: 0; right: 0; top: 0; height: 10px; }
+.ofw-vr__pin {
+  position: absolute; top: 0; width: 0; height: 0; padding: 0;
+  transform: translateX(-5px); cursor: pointer; background: none;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 9px solid var(--ofw-accent); border-bottom: 0;
+}
+.ofw-vr__pin--open      { border-top-color: var(--ofw-accent); }
+.ofw-vr__pin--pending   { border-top-color: #60a5fa; }
+.ofw-vr__pin--approved  { border-top-color: #4ade80; }
+.ofw-vr__pin--reflagged { border-top-color: var(--ofw-danger); }
+.ofw-vr__track {
+  position: relative; height: 34px; border-radius: 9px;
+  background: var(--ofw-field); border: 1px solid var(--ofw-line-2);
+  cursor: pointer; touch-action: none; user-select: none; overflow: hidden;
+}
+.ofw-vr__track:hover { border-color: var(--ofw-accent-line); }
+.ofw-vr__wave {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  display: block; pointer-events: none;
+}
+.ofw-vr__fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+  background: var(--ofw-accent-soft);
+  pointer-events: none;
+}
+.ofw-vr__cursor {
+  position: absolute; top: 0; bottom: 0; left: 0; width: 2px;
+  background: var(--ofw-accent); pointer-events: none;
+}
+.ofw-vr__knob {
+  position: absolute; top: 50%; left: 50%;
+  width: 13px; height: 13px; border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--ofw-accent); border: 2px solid var(--ofw-bg);
+  box-shadow: 0 0 0 1px var(--ofw-accent-line), 0 0 10px var(--ofw-accent-glow);
+  pointer-events: none;
+}
+.ofw-vr__hint { font-family: var(--ofw-font-mono); font-size: 10.5px; color: var(--ofw-text-faint); }
+.ofw-vr__composer {
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--ofw-panel); border: 1px solid var(--ofw-line-2);
+  border-radius: var(--ofw-radius-sm); padding: 10px 12px;
+}
+.ofw-vr__at {
+  font-family: var(--ofw-font-mono); font-size: 12px; font-weight: 700;
+  color: var(--ofw-accent); font-variant-numeric: tabular-nums;
+}
+.ofw-vr__text { resize: vertical; min-height: 54px; font-size: 13px; }
+.ofw-vr__composer-row { display: flex; gap: 8px; justify-content: flex-end; }
+.ofw-vr__notes { display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow-y: auto; }
+.ofw-vr__notes-head {
+  font-family: var(--ofw-font-display);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ofw-text-dim);
+}
+.ofw-vr__note {
+  display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap;
+  background: var(--ofw-panel); border: 1px solid var(--ofw-line);
+  border-radius: var(--ofw-radius-sm); padding: 8px 10px;
+}
+.ofw-vr__t {
+  font-family: var(--ofw-font-mono); font-size: 12px; font-weight: 700;
+  color: var(--ofw-accent); background: none; border: 0; padding: 0;
+  cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.ofw-vr__t--past { color: #60a5fa; }
+.ofw-vr__note--approved { opacity: 0.45; }
+.ofw-vr__note--approved .ofw-vr__t--past { color: #4ade80; }
+.ofw-vr__note--reflagged { opacity: 0.55; }
+.ofw-vr__note--reflagged .ofw-vr__t--past { color: var(--ofw-danger); }
+.ofw-vr__note-text { flex: 1; min-width: 0; font-size: 13px; word-break: break-word; }
+.ofw-vr__del {
+  background: none; border: 0; padding: 2px; cursor: pointer;
+  color: var(--ofw-text-faint); font-size: 13px; line-height: 1;
+}
+.ofw-vr__del:hover { color: var(--ofw-danger); }
+.ofw-vr__round-label {
+  margin-top: 6px; padding-bottom: 3px; border-bottom: 1px solid var(--ofw-line);
+  font-family: var(--ofw-font-display);
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ofw-text-faint);
+}
+.ofw-vr__qa-actions { display: flex; gap: 6px; flex-basis: 100%; justify-content: flex-end; }
+.ofw-vr__qa-btn {
+  background: var(--ofw-panel-2); border: 1px solid var(--ofw-line);
+  border-radius: 5px; padding: 3px 10px; font-size: 11px; font-weight: 700;
+  cursor: pointer; transition: background 0.1s, color 0.1s;
+}
+.ofw-vr__qa-btn--approve { color: #4ade80; border-color: rgba(74, 222, 128, 0.4); }
+.ofw-vr__qa-btn--approve:hover { background: #4ade80; color: #053826; }
+.ofw-vr__qa-btn--reflag { color: var(--ofw-accent); border-color: var(--ofw-accent-line); }
+.ofw-vr__qa-btn--reflag:hover { background: var(--ofw-accent); color: #1a1206; }
+
+/* ---------------- Unknown / unsupported component placeholder ---------------- */
+.ofw-unknown {
+  font-family: var(--ofw-font-mono); font-size: 13px; color: var(--ofw-danger);
+  background: var(--ofw-danger-soft); border: 1px dashed var(--ofw-danger);
+  border-radius: var(--ofw-radius-sm); padding: 12px 14px;
+}
+
+/* ---------------- Centered messages ---------------- */
+.ofw-center {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; text-align: center; min-height: 40vh; padding: 40px 20px;
+}
+.ofw-center__title {
+  font-family: var(--ofw-font-display); font-weight: 600; font-size: 17px; color: var(--ofw-text);
+}
+.ofw-center__detail {
+  font-family: var(--ofw-font-mono); font-size: 13px; color: var(--ofw-text-dim);
+  max-width: 560px; line-height: 1.6;
+}
+
+/* ---------------- Maps (native-app render; bundle renders the placeholder) ---------------- */
+.ofw-map { display: flex; flex-direction: column; gap: 6px; }
+.ofw-map__label {
+  font-family: var(--ofw-font-display); font-size: 13px; font-weight: 600; color: var(--ofw-text);
+}
+.ofw-map__frame {
+  position: relative; background: var(--ofw-panel-2); border: 1px solid var(--ofw-line);
+  /* Default height FLOOR so the map renders one-shot without per-dashboard CSS
+     hacks. `min-height` (not `height`) is deliberate: it survives the classic
+     collapse where an author/canvas `height: 100%` resolves to 0 against an
+     auto-height ancestor, yet still lets a parent that DOES pin a height grow
+     the map past the floor. Author `style`/`height`/`min-height` is spread inline
+     after this rule (higher specificity) so explicit overrides always win. */
+  min-height: 360px;
+}
+/* fused-map carries extra chrome (layer panel, legend, basemap switcher), so it
+   gets a slightly taller default floor. Same override rules as above. */
+.ofw-fmap .ofw-map__frame { min-height: 420px; }
+.ofw-map__overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: var(--ofw-font-mono); font-size: 13px; color: var(--ofw-text-dim);
+  background: var(--ofw-panel-2); pointer-events: none; z-index: 1;
+}
+.ofw-map__overlay--error { color: var(--ofw-danger); background: var(--ofw-danger-soft); }
+.ofw-map__actions { position: absolute; left: 8px; bottom: 8px; z-index: 2; }
+
+/* Deployed-bundle placeholder (the real maps render in the app). */
+.ofw-map-placeholder {
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start; justify-content: center;
+  font-family: var(--ofw-font-mono); color: var(--ofw-text-dim);
+  background: var(--ofw-panel-2); border: 1px dashed var(--ofw-line);
+  border-radius: var(--ofw-radius-sm); padding: 16px 18px; min-height: 120px;
+}
+.ofw-map-placeholder__title {
+  font-family: var(--ofw-font-display); font-weight: 600; font-size: 14px; color: var(--ofw-text);
+}
+.ofw-map-placeholder__name { font-weight: 700; color: var(--ofw-text); }
+.ofw-map-placeholder__body { font-size: 12px; line-height: 1.6; max-width: 460px; }
+
+/* sql-runner — a layout-transparent data-scope container (its query is a source). */
+.ofw-sql-runner { display: contents; }
+
+/* fused-map chrome — layer panel / basemap switcher / legend overlaid on the map. */
+.ofw-fmap { position: relative; }
+.ofw-fmap__basemaps { position: absolute; top: 8px; left: 8px; z-index: 3; display: flex; gap: 4px; }
+.ofw-fmap__chip {
+  font-family: var(--ofw-font-mono); font-size: 11px; text-transform: capitalize;
+  background: var(--ofw-panel-2); color: var(--ofw-text-dim); border: 1px solid var(--ofw-line);
+  border-radius: 5px; padding: 3px 8px; cursor: pointer; transition: color .1s, border-color .1s;
+}
+.ofw-fmap__chip.is-active { color: var(--ofw-text); border-color: var(--ofw-accent-line); background: rgba(232,255,89,0.1); }
+.ofw-fmap__panel {
+  position: absolute; top: 8px; right: 48px; z-index: 3; min-width: 140px; max-width: 220px;
+  background: var(--ofw-panel-2); border: 1px solid var(--ofw-line); border-radius: 6px;
+  padding: 8px 10px; font-family: var(--ofw-font-mono); font-size: 12px;
+}
+.ofw-fmap__panel-title { font-weight: 700; color: var(--ofw-text); margin-bottom: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.ofw-fmap__layer-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; color: var(--ofw-text-dim); cursor: pointer; }
+.ofw-fmap__layer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ofw-fmap__legends { position: absolute; bottom: 26px; left: 8px; z-index: 3; display: flex; flex-direction: column; gap: 6px; }
+.ofw-fmap__legend {
+  background: var(--ofw-panel-2); border: 1px solid var(--ofw-line); border-radius: 6px;
+  padding: 6px 8px; font-family: var(--ofw-font-mono); font-size: 10px; color: var(--ofw-text-dim); min-width: 150px;
+}
+.ofw-fmap__legend-title { color: var(--ofw-text); font-size: 11px; margin-bottom: 4px; }
+.ofw-fmap__legend-bar { height: 8px; border-radius: 3px; }
+.ofw-fmap__legend-domain { display: flex; justify-content: space-between; margin-top: 2px; }
+
+@keyframes ofw-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* ---------------------------------------------------------------------------
+ * Chart tooltip (shared by bar/line/scatter/donut/heatmap/stacked charts).
+ * These classes were referenced by every chart's custom tooltip but had no
+ * styling — the tooltip rendered as raw, run-together text. This gives them a
+ * proper floating panel consistent with the card chrome (interaction-audit).
+ * ------------------------------------------------------------------------- */
+.ofw-chart-tooltip {
+  background: var(--ofw-card-hi);
+  border: 1px solid var(--ofw-line-2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--ofw-text);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  min-width: 96px;
+  line-height: 1.35;
+  position: relative;
+  z-index: 40;
+}
+/* The tooltip must paint ABOVE in-widget content (e.g. the donut's center-total
+ * text, absolutely positioned over the ring). recharts' wrapper is a positioned
+ * sibling of the chart svg with no z-index, so lift it explicitly. */
+.recharts-tooltip-wrapper { z-index: 40 !important; }
+/* Keep absolutely-positioned chart overlays (donut center total) below the tooltip. */
+.ofw-chart__center { z-index: 1; }
+.ofw-chart-tooltip__label {
+  color: var(--ofw-text-dim);
+  font-size: 11px;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.ofw-chart-tooltip__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ofw-chart-tooltip__row + .ofw-chart-tooltip__row { margin-top: 2px; }
+.ofw-chart-tooltip__swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+.ofw-chart-tooltip__name { color: var(--ofw-text-dim); }
+.ofw-chart-tooltip__value { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }

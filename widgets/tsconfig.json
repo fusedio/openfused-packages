@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "allowJs": true,
+    "types": ["node"],
+    "paths": {
+      "@kit": ["../ui-kit/src/index.ts"],
+      "@kit/*": ["../ui-kit/src/*"]
+      // packages/widgets is part of the root pnpm workspace, so @types/react
+      // resolves to the single hoisted copy shared with the app and ui-kit. No
+      // React path pins needed — one toolchain, one React 19
+      // (spec/ui/ui-architecture.md §2.2).
+    }
+  },
+  "include": ["src", "scripts"]
+}

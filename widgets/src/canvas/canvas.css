@@ -1,0 +1,427 @@
+/*
+ * Canvas component styles. Plain CSS (no Tailwind directives) — esbuild bundles
+ * it and build.mjs folds the emitted CSS inline into widget.html. Ported from the
+ * app's mcp-host canvas.css, re-expressed in openfused's `--ofw-*` tokens.
+ *
+ * The first @import pulls in @xyflow/react's REQUIRED base stylesheet (node /
+ * edge / viewport positioning + transforms). Without it ReactFlow renders an
+ * unstyled, mis-positioned graph. esbuild inlines it into the same CSS output.
+ *
+ * --canvas-accent / -ring / -soft are defined INLINE on the canvas surface
+ * (widgets/canvas.tsx CANVAS_SURFACE_STYLE) so they always resolve; they inherit
+ * down to every node/edge/control here.
+ *
+ * PINNED rules: solid node cards, glass for floating chrome only, accent on ≤3
+ * things, reduced-motion mandatory.
+ */
+@import "@xyflow/react/dist/style.css";
+
+/* Glass surface for floating chrome only (controls) — never node cards. */
+.glass {
+  background-color: color-mix(in oklab, var(--ofw-panel) 55%, transparent);
+  border: 1px solid color-mix(in oklab, white 12%, transparent);
+  border-radius: var(--ofw-radius, 10px);
+  box-shadow:
+    0 8px 32px oklch(0 0 0 / 0.4),
+    inset 0 1px 0 0 color-mix(in oklab, white 10%, transparent);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+}
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .glass {
+    background-color: var(--ofw-panel);
+  }
+}
+
+/* Floating control buttons (hover / focus). */
+.canvas-control-btn:hover {
+  color: var(--ofw-text);
+  background: color-mix(in oklab, var(--ofw-text) 8%, transparent);
+}
+.canvas-control-btn:focus-visible {
+  outline: 2px solid var(--ofw-accent-line);
+  outline-offset: 2px;
+}
+
+/* Solid node card: rim highlight + soft drop (depth by luminance). */
+.canvas-node {
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in oklab, white 6%, transparent),
+    0 1px 2px oklch(0 0 0 / 0.4);
+  /* Hover lightens the border only — no translateY lift. */
+  transition:
+    border-color 110ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.canvas-node:hover {
+  border-color: var(--ofw-line-2);
+}
+/* Ease the one-time measure→relayout position shift. View mode is
+   non-draggable, so this never fights a drag. Off under reduced motion. */
+.react-flow__node {
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Param-flow "breath": a calm low-amplitude accent pulse while broadcasting. */
+.canvas-node[data-running="true"] {
+  animation: canvasNodeBreath 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes canvasNodeBreath {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 1px var(--canvas-accent-soft),
+      inset 0 1px 0 0 color-mix(in oklab, white 6%, transparent),
+      0 1px 2px oklch(0 0 0 / 0.4);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 14px 1px var(--canvas-accent-soft),
+      inset 0 1px 0 0 color-mix(in oklab, white 6%, transparent),
+      0 1px 2px oklch(0 0 0 / 0.4);
+  }
+}
+
+/* Edge motion (referenced inline by canvas-edge.tsx). */
+@keyframes edgeDashFlow {
+  from {
+    stroke-dashoffset: 22;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes pelletTravel {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
+  }
+}
+
+/* ------------------------------------------------------ load skeleton
+ * Pipeline overview: a data-bound node whose FIRST resolve is still in flight
+ * shows a SHAPE-MATCHED skeleton of its OWN widget until its data lands
+ * (CanvasHostValue.dataLoading) — the node's real static text/labels/titles
+ * paint immediately and shimmer blocks stand in only where data goes, so the
+ * layout barely jolts when rows arrive. Static cards (datasets / UDFs) never
+ * show it. A small elapsed-seconds timer sits bottom-right (a slow UDF visibly
+ * shows how long it has been resolving). Built in canvas-node-skeleton.tsx. */
+.canvas-skel {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+.canvas-skel__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+/* One shimmer placeholder block: a calm left-to-right sweep over a dim fill. */
+.canvas-skel-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--ofw-text, #e7ecf3) 7%, transparent);
+}
+.canvas-skel-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--ofw-text, #e7ecf3) 9%, transparent),
+    transparent
+  );
+  animation: canvasSkelShimmer 1.4s ease-in-out infinite;
+}
+/* Timer: bottom-right, unobtrusive (does not steal focus from the shape). */
+.canvas-skel__time {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ofw-text-dim, rgba(170, 190, 220, 0.6));
+  pointer-events: none;
+}
+@keyframes canvasSkelShimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Reduced motion is MANDATORY: keep the accent (state) signal, drop the motion. */
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__node {
+    transition: none;
+  }
+  .canvas-node[data-running="true"] {
+    animation: none;
+    box-shadow: inset 0 0 0 1.5px var(--canvas-accent);
+  }
+  .canvas-edge-path {
+    animation: none !important;
+    stroke-dasharray: none !important;
+  }
+  .react-flow__edge circle {
+    animation: none !important;
+    display: none;
+  }
+  /* Keep the shape signal (dim placeholder blocks) but drop the moving sweep. */
+  .canvas-skel-shimmer::after {
+    animation: none !important;
+    display: none;
+  }
+  .react-flow__node,
+  .react-flow__edge {
+    transition: none !important;
+  }
+}
+
+/* ----------------------------------------------------------------- comments
+ * Pinned comment threads (json-ui-comments.md §3). The pins layer is a child of
+ * the flow pane; pins are positioned in screen space (the overlay applies the
+ * viewport transform) so they pan/zoom with the canvas at constant size. The
+ * popover is portaled to <body> and uses the .glass floating-chrome surface.
+ */
+.canvas-comments-layer {
+  pointer-events: none;
+}
+.canvas-comments-capture,
+.canvas-comment-pin,
+.canvas-comment-draft,
+.canvas-comment-popover {
+  pointer-events: auto;
+}
+
+/* Pin: a 24px teardrop marker, anchored by its bottom tip (translate up/left). */
+.canvas-comment-pin {
+  width: 24px;
+  height: 24px;
+  margin: -24px 0 0 -2px; /* tip sits on the anchor point */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1.5px solid color-mix(in oklab, white 22%, transparent);
+  border-bottom-left-radius: 2px;
+  border-top-left-radius: 50%;
+  border-top-right-radius: 50%;
+  border-bottom-right-radius: 50%;
+  background: var(--canvas-accent, #4aa3ff);
+  color: #06121f;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 8px oklch(0 0 0 / 0.45);
+  transition:
+    transform 110ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 110ms ease;
+}
+.canvas-comment-pin:hover {
+  transform: scale(1.12);
+}
+.canvas-comment-pin.is-open {
+  box-shadow:
+    0 0 0 3px var(--canvas-accent-ring, rgba(74, 163, 255, 0.4)),
+    0 2px 8px oklch(0 0 0 / 0.45);
+}
+.canvas-comment-pin.is-resolved {
+  background: color-mix(in oklab, var(--ofw-panel, #141a22) 80%, transparent);
+  color: var(--ofw-text-dim, #93a0b2);
+  border-color: color-mix(in oklab, white 14%, transparent);
+  opacity: 0.75;
+}
+.canvas-comment-pin-glyph {
+  pointer-events: none;
+}
+
+/* Draft input + popover share the input + button language. */
+.canvas-comment-draft {
+  width: 240px;
+  padding: 8px;
+  border-radius: var(--ofw-radius, 10px);
+}
+.canvas-comment-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  border-radius: var(--ofw-radius-sm, 7px);
+  border: 1px solid color-mix(in oklab, white 14%, transparent);
+  background: var(--ofw-bg, #0a0e14);
+  color: var(--ofw-text, #e7ecf3);
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  outline: none;
+}
+.canvas-comment-input:focus-visible {
+  border-color: var(--canvas-accent, #4aa3ff);
+}
+.canvas-comment-draft-actions,
+.canvas-comment-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+.canvas-comment-actions {
+  justify-content: space-between;
+}
+.canvas-comment-btn-primary,
+.canvas-comment-btn-ghost {
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: var(--ofw-radius-sm, 7px);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+.canvas-comment-btn-primary {
+  background: var(--canvas-accent, #4aa3ff);
+  color: #06121f;
+  font-weight: 600;
+}
+.canvas-comment-btn-primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.canvas-comment-btn-ghost {
+  background: transparent;
+  color: var(--ofw-text-dim, #93a0b2);
+  border-color: color-mix(in oklab, white 12%, transparent);
+}
+.canvas-comment-btn-ghost:hover {
+  color: var(--ofw-text, #e7ecf3);
+  background: color-mix(in oklab, var(--ofw-text, #e7ecf3) 8%, transparent);
+}
+
+/* Popover thread. Z must beat the page-level comments layer (2147482000) —
+ * otherwise, while comment mode is armed, its full-viewport capture overlay
+ * shadows the popover and Reply/Resolve/Delete are unclickable. */
+.canvas-comment-popover {
+  padding: 10px;
+  border-radius: var(--ofw-radius, 10px);
+  z-index: 2147482500;
+  max-height: min(60vh, 460px);
+  display: flex;
+  flex-direction: column;
+}
+.canvas-comment-thread {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.canvas-comment-msg-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+.canvas-comment-author {
+  font-weight: 600;
+  color: var(--ofw-text, #e7ecf3);
+}
+.canvas-comment-author--agent {
+  color: var(--canvas-accent, #4aa3ff);
+}
+.canvas-comment-time {
+  color: var(--ofw-text-dim, #93a0b2);
+}
+.canvas-comment-edit-link {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--ofw-text-dim, #93a0b2);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+.canvas-comment-edit-link:hover {
+  color: var(--ofw-text, #e7ecf3);
+}
+.canvas-comment-msg-body {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ofw-text, #e7ecf3);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.canvas-comment-reply-row {
+  margin-top: 8px;
+}
+
+/* Pin drag + hover preview (Workbench parity). */
+.canvas-comment-pin {
+  touch-action: none; /* let pointer-drag own the gesture */
+}
+.canvas-comment-pin.is-dragging {
+  cursor: grabbing;
+  transform: scale(1.08);
+  box-shadow: 0 6px 18px oklch(0 0 0 / 0.5);
+}
+.canvas-comment-hovercard {
+  width: 240px;
+  margin: -34px 0 0 14px; /* sit above-right of the pin tip */
+  padding: 8px 10px;
+  border-radius: var(--ofw-radius, 10px);
+  pointer-events: none; /* preview only — never steals the click */
+}
+.canvas-comment-hovercard-author {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ofw-text, #e7ecf3);
+  margin-bottom: 3px;
+}
+.canvas-comment-hovercard-body {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ofw-text, #e7ecf3);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.canvas-comment-hovercard-more {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ofw-text-dim, #93a0b2);
+}
+
+/* Right-edge flip (Workbench parity): cards anchored near the pane's right edge
+ * render to the LEFT of their anchor so they never overflow the iframe. */
+.canvas-comment-hovercard.is-flipped {
+  margin: -34px 0 0 -14px; /* mirror of the above-right offset */
+  transform: translateX(-100%);
+}
+.canvas-comment-draft.is-flipped {
+  margin-left: -6px;
+  transform: translateX(-100%);
+}
+
+/* Folder title bar as a collapse/expand toggle (ephemeral view state). */
+.canvas-folder-title--toggle:hover {
+  filter: brightness(1.12);
+}
+.canvas-folder-title--toggle:focus-visible {
+  outline: 2px solid var(--canvas-accent, #4aa3ff);
+  outline-offset: 1px;
+}

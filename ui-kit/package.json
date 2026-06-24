@@ -1,0 +1,30 @@
+{
+  "name": "@fusedio/ui-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenFused dumb-UI library — pure shadcn primitives + OKLCH design tokens. Consumed as source (no npm publish).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./index.css": "./src/index.css"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.2.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "lucide-react": "^0.574.0",
+    "radix-ui": "^1.4.3",
+    "tailwind-merge": "^3.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.1.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "vitest": "^3.0.0"
+  }
+}

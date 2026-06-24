@@ -1,0 +1,19 @@
+{
+  "name": "@fusedio/dev-serve-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenFused dev-serve client — the `openfused dev serve` spawn + handshake + token-bearing HTTP proxy, plus the directory-mode and `_core` string-addressed proxies. A leaf library (Node child_process + http only) imported by both the app and widget-host hosts. Consumed as source (no npm publish).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.42",
+    "typescript": "^5.4.5",
+    "vitest": "^3.0.0"
+  }
+}
