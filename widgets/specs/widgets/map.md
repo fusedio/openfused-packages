@@ -17,7 +17,7 @@
 - States: an in-frame `"Loading map…"` overlay while the dynamic `maplibre-gl` + `@deck.gl/*` imports / map `load` are pending; on import/init failure an in-frame `"Map failed: <msg>"` overlay (error is contained to the card, never blanks the widget). A `ResizeObserver` calls `map.resize()` on container resize; the map is `.remove()`d on unmount.
 - Init is **once** — `mapStyle`/`centerLng`/`centerLat`/`zoom` are first-paint only and not reactive after mount.
 - Deliberate behavioural subset vs the app: data binds **per-layer** (via `layers[].udf` or `layers[].sql`) rather than the app's flat form; `param`/`sendParam` emit a SQL-safe `"west,south,east,north"` **string** instead of the app's array form (same key, narrowed value); MapLibre with no token instead of Mapbox; `vizConfig` is a documented subset of the app's viz config.
-- WHERE it renders: **native app only** (`openfused inloop` / parley). The self-contained deployed-serve bundle (`widget.html`) aliases this component to a placeholder that renders a "Map preview — maps render in the In-Loop app" notice instead of a map (the bundle ships no WebGL map libs, external tiles, or token channel).
+- WHERE it renders: **native React host only** (the `widget-host/` viewer / parley, or an external control-plane consumer such as Flow, `fusedio/flow`). The self-contained deployed-serve bundle (`widget.html`) aliases this component to a placeholder that renders a "Map preview — maps render in a native widget host" notice instead of a map (the bundle ships no WebGL map libs, external tiles, or token channel).
 
 ## Exposed params
 

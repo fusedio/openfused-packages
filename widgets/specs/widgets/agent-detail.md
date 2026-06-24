@@ -73,5 +73,5 @@ unavailable/empty state.
   upstream `update` treats an empty field as "leave unchanged".
 
 See `widgets/task-board.md` (the sibling pattern), `spec/json-ui-data.md`, and the
-app render / resolve / host surface in `spec/json-ui-app.md` §13 (the agent-detail
-container, shared host resolution, and task assignment).
+consuming control-plane app's render / resolve / host surface (the agent-detail
+container, shared host resolution, and task assignment) — now in fusedio/flow.

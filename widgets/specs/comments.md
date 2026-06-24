@@ -232,5 +232,5 @@ slot of `RenderTree` ([`./rendering.md`](./rendering.md)) — but portals its vi
 - **Host (logic half):** [`../../../spec/json-ui-comments.md`](../../../spec/json-ui-comments.md)
   — the `__comments` param-plane persistence (URL-sync vs config-reseed, the URL soft-cap),
   the data model + normalization-as-contract, and the agent feedback loop.
-- **Host (app render/resolve):** [`../../../spec/json-ui-app.md`](../../../spec/json-ui-app.md)
-  — `WidgetView`'s comment wiring + the app's feedback-task lifecycle.
+- **Host (app render/resolve):** the consuming control-plane app's comment wiring +
+  feedback-task lifecycle now lives in fusedio/flow.

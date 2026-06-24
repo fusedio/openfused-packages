@@ -186,9 +186,8 @@ widget-data resolve proxy to obtain `{data, errors, depMap, config}`, render the
 `$param` change — is the host's contract, not the package's. The package only provides
 `RenderTree` + the bridge/store machinery the host wires together. See:
 
-- host `spec/json-ui-app.md` — the app's native render + per-project resolve daemon;
-- repo `spec/ui/widget-rendering.md` — the app render path (first paint, reactivity,
-  routing);
+- the consuming control-plane app's native render + per-project resolve daemon (and its
+  render path: first paint, reactivity, routing) now lives in fusedio/flow;
 - host `spec/json-ui-data.md` — SQL resolution, the `{{ref}}`/`$param` grammar, the
   security boundary.
 
@@ -205,5 +204,5 @@ widget-data resolve proxy to obtain `{data, errors, depMap, config}`, render the
 - [`catalog.md`](./catalog.md) — the component catalog, single source of truth, and
   `components.json` generation (the hard type gate).
 - [`comments.md`](./comments.md) — the comment overlay that consumes `[data-ofw-node]`.
-- Host: `spec/json-ui-app.md` (consumer render + resolve daemon),
+- Host: the consumer render + resolve daemon now lives in fusedio/flow;
   `spec/json-ui-data.md` (SQL resolution + grammar + security boundary).

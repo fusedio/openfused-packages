@@ -115,7 +115,7 @@ a screenshot + a one-line analysis per cell.
   be `n/a` in headless — record as skipped, not failed).
 - **`video-review`: scrub timeline, add a marker/comment → emits**.
 
-### 3.8 Composite app widgets — `task-board`, `agent-detail`, `canvas`, `secrets-manager`
+### 3.8 Composite control-plane widgets — `task-board`, `agent-detail`, `canvas`, `secrets-manager`
 - **`task-board`: columns render; card hover; click card → opens; New-Task control;
   drag between columns** (if supported); refresh param.
 - **`agent-detail`: renders agent; tabs/links work**.
@@ -141,14 +141,14 @@ logged explicitly — never counted as passes.
 ## 4b. The harness (implemented)
 
 The verifier lives at `scripts/widget-interaction-audit/` (driver `run.mjs` +
-per-widget probes `interactions.mjs`, Playwright/Chromium) and renders against an
-in-app harness page `inloop/audit.html` → `inloop/src/audit/main.tsx`, which mounts the
-app's own `WidgetView` with STATIC inline data (no resolve daemon) selected by
-`?widget=&variant=default|propped`. Fixtures (one per component, default + propped)
-are in `inloop/src/audit/fixtures.ts`. Run: start `vite` in `inloop/`, then
-`node scripts/widget-interaction-audit/run.mjs --base http://localhost:<port>
---sizes default,narrow,wide,short,tall`. It writes `report.json` + before/after
-screenshots; `report.json` lists every cell's probe pass/fail for triage.
+per-widget probes `interactions.mjs`, Playwright/Chromium) and renders against a
+harness page hosted by a consuming control-plane app (now external — Flow, `fusedio/flow`:
+`audit.html` → `src/audit/main.tsx`), which mounts the host's own `WidgetView` with STATIC
+inline data (no resolve daemon) selected by `?widget=&variant=default|propped`. Fixtures
+(one per component, default + propped) live in the host's `src/audit/fixtures.ts`. Run: start
+that host's `vite` dev server, then `node scripts/widget-interaction-audit/run.mjs --base
+http://localhost:<port> --sizes default,narrow,wide,short,tall`. It writes `report.json` +
+before/after screenshots; `report.json` lists every cell's probe pass/fail for triage.
 
 ## 4c. First-run findings (all fixed)
 

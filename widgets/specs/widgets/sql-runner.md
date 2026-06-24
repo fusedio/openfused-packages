@@ -3,7 +3,7 @@
 > Container that runs a named query once (props.name + props.sql) and exposes its result to descendant queries as {{name}}. The query is a server-side source, not a rendered output; children render normally.
 
 ## Why
-`sql-runner` is a **container** that defines a named, server-side SQL source: `props.name` + `props.sql` register a local-view source the resolver runs ONCE, and any descendant query may then read its result as `{{name}}`. Authors reach for it to compute an intermediate result once and fan it out to multiple descendant `sql` bindings — instead of repeating (and re-running) the same query in each child. It produces no visual output of its own; it only lays out its children. It is a strict, paste-compatible **subset** of the Fused application's `sql-runner` (spec/ui/json-ui-widgets-batch1.md § Deferred: sql-runner).
+`sql-runner` is a **container** that defines a named, server-side SQL source: `props.name` + `props.sql` register a local-view source the resolver runs ONCE, and any descendant query may then read its result as `{{name}}`. Authors reach for it to compute an intermediate result once and fan it out to multiple descendant `sql` bindings — instead of repeating (and re-running) the same query in each child. It produces no visual output of its own; it only lays out its children. It is a strict, paste-compatible **subset** of the Fused application's `sql-runner` ([`../catalog.md`](../catalog.md) § Deferred: sql-runner).
 
 ## Expectation
 - Renders a single wrapper element around `element.children`. The wrapper is **layout-transparent** — it imposes no box and just lays out children in place. `name`/`sql` produce no visual output.

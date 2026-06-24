@@ -6,20 +6,21 @@ It owns the component catalog, the registry/renderer that walks a config tree, t
 free-form canvas, the map renderers, the reactive client-side data/param machinery, and
 the build-time generator that emits the catalog manifest the Python server reads.
 
-It is one of four TypeScript packages in the pnpm workspace
+It is one of the TypeScript packages in the pnpm workspace
 (`spec/ui/ui-architecture.md` is the canonical owner of that physical layout):
 
 ```
-app → @fusedio/widgets → @fusedio/ui-kit
-ui/ → @fusedio/widgets
+widget-host/ → @fusedio/widgets → @fusedio/ui-kit
+static-ui/   → @fusedio/widgets
 ```
 
 `@fusedio/widgets` composes `ui-kit` (dumb shared primitives) and is consumed **as
 source** (no npm publish — `package.json` is `private`, `exports` point at `./src/*`) by:
 
-- **`inloop/`** — the `openfused inloop` Express+React viewer, which renders configs **natively**
-  (no iframe, no bundle).
-- **`ui/`** — the standalone bundle host that esbuild-bundles the renderer into
+- **`widget-host/`** — the `openfused widget open`/parley viewer, which renders configs
+  **natively** (no iframe, no bundle). It is also consumed externally — by the standalone
+  Flow control-plane app (`fusedio/flow`), which renders its dashboard natively the same way.
+- **`static-ui/`** — the standalone bundle host that esbuild-bundles the renderer into
   `widget.html` for the deployed serve plane.
 
 ---
@@ -66,8 +67,9 @@ component). By role:
   `fused-map`.
 - **Source:** `sql-runner` (a named-query container; resolves once, feeds `{{name}}`).
 - **Feedback primitives (OpenFused-owned):** `button`, `video-review`.
-- **Task surface (OpenFused-owned; app-host surfaces only):** `task-board` (list + kanban of
-  tasks, all controls inside, drag-to-change-status + create + cancel via the `udfs` write path).
+- **Task surface (OpenFused-owned; control-plane consumer surfaces only):** `task-board` (list +
+  kanban of tasks, all controls inside, drag-to-change-status + create + cancel via the `udfs`
+  write path). The control-plane consumer that renders it is external (Flow, `fusedio/flow`).
 
 Per-component contracts live one file each under [`widgets/`](./widgets/) — *why* the
 component exists, the behavioural *expectation*, and the *exposed params*.
@@ -77,8 +79,11 @@ component exists, the behavioural *expectation*, and the *exposed params*.
 - It is the **render** half of JSON-UI. The **authoring grammar**, the SQL/data contract,
   and the viewing surfaces are specified at the repo level: `spec/ui/json-ui.md` (config
   document + catalog + single source of truth), `spec/json-ui-data.md` (the `{{ref}}` /
-  `$param` grammar + the hardened-DuckDB resolver), `spec/json-ui-app.md` (the app's
-  native render + per-project resolve daemon), `spec/json-ui-local.md` (the parley).
+  `$param` grammar + the hardened-DuckDB resolver), `spec/json-ui-local.md` (the
+  `widget-host/` viewer + the parley). The OpenFused-owned render surfaces are the
+  `widget-host/` viewer/parley (native React render) and the deployed serve plane (the
+  frozen `widget.html` bundle); external consumers (the Flow control-plane app, `fusedio/flow`)
+  render the same configs natively through the same package.
 - It exposes **no MCP tools or resources** — agents author widget *files*; humans *view*
   them. The MCP server only reads the generated `components.json`.
 

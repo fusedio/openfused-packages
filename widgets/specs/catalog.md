@@ -19,8 +19,8 @@ OpenFused's own `dropdown` conventions), `task-board` (the task surface — list
 all controls; [`widgets/task-board.md`](./widgets/task-board.md)), and the prose/diff pair
 `markdown` (GitHub-flavored markdown rendering) and `diff` (a colored before/after or unified
 diff — built for markdown spec review). The `markdown` and `diff` renderers are **shared with
-the app task thread** (`MarkdownView`/`DiffView` from `@fusedio/widgets`) — one
-implementation, two surfaces.
+a control-plane consumer's task thread** (`MarkdownView`/`DiffView` from `@fusedio/widgets`;
+that consumer is now external — Flow, `fusedio/flow`) — one implementation, two surfaces.
 
 ---
 
@@ -146,16 +146,17 @@ Actions & selection. `canvas` (in Containers above) is the third OpenFused-owned
 
 | type | purpose | key props | data-bound |
 |---|---|---|:--:|
-| [`task-board`](./widgets/task-board.md) | the paperclip task-view as a widget: list + kanban of a project's (or all) tasks, all controls inside, drag-to-change-status + create + cancel + assign; reads `{{_core.task-management.read}}` SQL, writes by firing the `_core.task-management.update_status` (move/cancel), `create`, and `assign` UDFs through the §11 executor seam (`bridge.udfs.execute`), then bumps a refresh param to refetch. **App surface only** (where `_core.*` refs resolve) — the deployed-serve bundle renders "unavailable" | `project`, `sql`, `defaultView`, `defaultGroupBy`, `taskHref` | yes |
-| [`agent-detail`](./widgets/agent-detail.md) | the per-agent interface as a widget: Overview (config edit + stats) / Runs / Instructions; reads the one agent row via `{{_core.agents-management.read?slug=$agentSlug}}` SQL, loads runs lazily via an executor read of `_core.task-management.read`, saves config/prompt via `_core.agents-management.update` then reflects the returned record (no re-resolve). Adapter options are injected at render by the app container. **App-host surfaces only** | `agentSlug`, `sql`, `adapters`, `taskHref`, `newTaskHref` | yes |
+| [`task-board`](./widgets/task-board.md) | the paperclip task-view as a widget: list + kanban of a project's (or all) tasks, all controls inside, drag-to-change-status + create + cancel + assign; reads `{{_core.task-management.read}}` SQL, writes by firing the `_core.task-management.update_status` (move/cancel), `create`, and `assign` UDFs through the §11 executor seam (`bridge.udfs.execute`), then bumps a refresh param to refetch. **Control-plane consumer surfaces only** (where `_core.*` refs resolve; the consumer is external — Flow, `fusedio/flow`) — the deployed-serve bundle renders "unavailable" | `project`, `sql`, `defaultView`, `defaultGroupBy`, `taskHref` | yes |
+| [`agent-detail`](./widgets/agent-detail.md) | the per-agent interface as a widget: Overview (config edit + stats) / Runs / Instructions; reads the one agent row via `{{_core.agents-management.read?slug=$agentSlug}}` SQL, loads runs lazily via an executor read of `_core.task-management.read`, saves config/prompt via `_core.agents-management.update` then reflects the returned record (no re-resolve). Adapter options are injected at render by the consumer's container. **Control-plane consumer surfaces only** (the consumer is external — Flow, `fusedio/flow`) | `agentSlug`, `sql`, `adapters`, `taskHref`, `newTaskHref` | yes |
 
 `task-board` is the **fourth OpenFused-owned spec-owned primitive that breaks app parity** (after
-`button`, `video-review`, and `canvas`). The Fused app has no task concept, so there is nothing
-to be paste-compatible with. It is also the first widget to **write** through the resolve plane
-(handoff ADR 0002) and the first to iterate a collection into per-row / per-lane layouts. It runs
-on the **app surface** — the `_core.task-management` UDFs always run on the local app-host
-compute (the `_core` project is local-only), so it works for AWS-backed projects too; only the
-deployed-serve bundle (no `_core` project in scope, no `execUrl`) renders "unavailable." See
+`button`, `video-review`, and `canvas`). The Fused application has no task concept, so there is
+nothing to be paste-compatible with. It is also the first widget to **write** through the resolve
+plane (handoff ADR 0002) and the first to iterate a collection into per-row / per-lane layouts. It
+runs on a **control-plane consumer surface** (now external — Flow, `fusedio/flow`) — the
+`_core.task-management` UDFs always run on the local consumer's compute host (the `_core` project
+is local-only), so it works for AWS-backed projects too; only the deployed-serve bundle (no
+`_core` project in scope, no `execUrl`) renders "unavailable." See
 [`widgets/task-board.md`](./widgets/task-board.md), `spec/ui/json-ui.md` § Authoring & catalog,
 and `spec/json-ui-data.md`.
 
@@ -168,7 +169,7 @@ default-exports a `ComponentDef` built by spreading `defineComponent({ component
 and appending the local `writesParam` flag.
 
 `defineComponent` (from `@fusedio/widget-sdk`) carries the renderer + the inline **zod** prop
-schema + a one-line description + `hasChildren`; In-Loop appends the local `writesParam`
+schema + a one-line description + `hasChildren`; the package appends the local `writesParam`
 flag (the SDK does not know it). The single universal prop (`style`) is declared once and
 composed into every component's schema, never restated per type.
 

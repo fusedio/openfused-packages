@@ -8,9 +8,9 @@ A diff renderer for showing what changed between two pieces of text — built fo
 before/after text. It is an **OpenFused-owned primitive** (no app parity).
 
 The rendering is the shared `DiffView` from `@fusedio/widgets`
-(`src/diff-view.tsx`) — the **same** renderer the app spec-review thread uses
-(`inloop/src/ui/components/DiffRenderer.tsx`, fed by `DiffForPath` → `api.projectDiff`).
-One diff implementation, two surfaces.
+(`src/diff-view.tsx`) — the **same** renderer a consuming control-plane app's spec-review
+thread uses (that consumer is now external — Flow, `fusedio/flow`, where it is fed by a
+`DiffForPath` → `api.projectDiff` path). One diff implementation, two surfaces.
 
 ## Expectation
 Two input modes (provide one):
@@ -32,8 +32,8 @@ Other behaviour:
 - Optional `oldLabel`/`newLabel` render a header (`oldLabel` struck through, then
   `→ newLabel`).
 - Styling is theme-portable: `.ofw-diff` (widget.css) tints add/del rows with
-  translucent green/red that read on both the dark widget surface and the app
-  thread; text color is inherited.
+  translucent green/red that read on both the dark widget surface and a consuming
+  host's task thread; text color is inherited.
 - Not data-bound, not an input.
 - Renders everywhere.
 
@@ -55,5 +55,5 @@ Other behaviour:
 - Uses SDK primitives only (`parseStyle`, `defineComponent`, `ComponentRenderProps`)
   plus the shared `DiffView`. `computeLineDiff` / `classifyUnifiedLine` are exported
   from `diff-view.tsx` and unit-tested directly.
-- `DiffView` imports no CSS itself; consumers must have `widget.css` loaded (the app
-  does so globally in `main.tsx`).
+- `DiffView` imports no CSS itself; consumers must have `widget.css` loaded (a consuming
+  host loads it globally in its entry, `main.tsx`).

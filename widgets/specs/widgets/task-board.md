@@ -5,32 +5,33 @@
 > of their controls — search, status filter, group/sort, list/board/tree toggle, collapsible
 > groups, and drag-to-change-status — held inside the component as client React state.
 > Click-through (a task row → its detail; a root's widget-board link) rides the host's **generic
-> `navigate(path)` capability** (`OpenfusedHost`, surfaces.md §11); off-app surfaces with no host
+> `navigate(path)` capability** (`OpenfusedHost`, surfaces.md §11); surfaces with no host
 > render the rows inert. Reads task rows through `{{ref}}` SQL over the
 > `_core.task-management.read` cross-project UDF (read-only); mutates (drag-to-move, cancel,
 > create) by firing `_core.task-management.update_status` (move/cancel) and
 > `_core.task-management.create` (create) through the **generic event-triggered executor seam**
-> (`bridge.udfs.execute` → the host `POST /api/udf-exec` route — spec/json-ui-app.md §11, the
+> (`bridge.udfs.execute` → the host `POST /api/udf-exec` route — surfaces.md §10, the
 > same seam a `button`'s `executor` prop fires), then bumping a refresh param to re-resolve the
 > read (mutate-then-refetch). The **4th OpenFused-owned primitive** (after `button`,
-> `video-review`, `canvas`) — it is NOT in the Fused app, so it breaks paste-compatibility. It runs on the
-> **app surface** (where `_core.*` cross-project refs resolve); only the deployed-serve bundle,
-> which has no `_core` project in scope, renders "unavailable." It works for AWS-backed projects
-> too: the `_core` UDFs always execute on the local backend regardless of the requesting
-> project's env.
+> `video-review`, `canvas`) — it is NOT in the Fused application, so it breaks paste-compatibility.
+> It runs on a **control-plane consumer surface** (now external — Flow, `fusedio/flow` — where
+> `_core.*` cross-project refs resolve); only the deployed-serve bundle, which has no `_core`
+> project in scope, renders "unavailable." It works for AWS-backed projects too: the `_core` UDFs
+> always execute on the local backend regardless of the requesting project's env.
 
 ## Why
 
-`task-board` is the json-ui re-incarnation of the app's **task-view** (the `TasksList` +
-`KanbanBoard` + `TaskTree` page mounted by `TasksPage` / `TasksContainer`). An author reaches for it to drop
+`task-board` is the json-ui re-incarnation of a control-plane app's **task-view** (the
+`TasksList` + `KanbanBoard` + `TaskTree` page mounted by `TasksPage` / `TasksContainer`; that
+consumer is now external — Flow, `fusedio/flow`). An author reaches for it to drop
 the whole task surface — list, kanban, and every control — into a widget config as a single
 node `{"type":"task-board"}`, instead of the bespoke React page. Its role is a **stateful,
 mutating display**: it reads live task rows and lets a human re-triage them (drag a card to
 change status; create a task) without a model turn.
 
 It is an **OpenFused-owned primitive**, the fourth after `button`, `video-review`, and `canvas`,
-**not** governed by app parity — the Fused app has no task concept, so there is nothing to be
-paste-compatible *with*. This is a deliberate parity break, owned by `spec/ui/json-ui.md`
+**not** governed by app parity — the Fused application has no task concept, so there is nothing
+to be paste-compatible *with*. This is a deliberate parity break, owned by `spec/ui/json-ui.md`
 § Authoring & catalog and ADR 0001 (handoff packet `adr/0001-task-board-spec-owned-primitive.md`).
 It is also the first widget that **writes** through the resolve plane (ADR 0002), and the first
 that iterates a collection to render per-row / per-lane layouts. Both are knowing extensions of
@@ -45,29 +46,29 @@ OpenFused-owned primitive is added and how an interaction leaves the widget).
 
 ### Where it renders (the unavailable state)
 
-- **App-host surfaces only — but NOT backend-gated.** Task state lives under `~/.openfused/app/`
-  and is reached by the `_core.task-management` UDFs. The `_core` project is a local project,
-  so its UDFs **always execute on a LOCAL compute backend (the app host), regardless of the
-  requesting project's configured env.** So the task-board functions for AWS-backed (and any
-  other) projects exactly as it does for local ones — there is **no
-  non-local-backend gate**. The locality requirement is about the *app host*, not the project's
-  backend.
-- The component is therefore available on the surfaces that **have an app host + an injected
-  `udfs` executor**:
-  - **App** (`openfused inloop`) — available.
-  - **Parley** (`widget push` / `widget watch` / `widget open`) — **available**: the parley runs
-    on the **same Express process** as the app (locked DESIGN decision 2), so it rides the app's
-    tasks UDFs + `udfs` executor for free.
+- **Control-plane consumer surfaces only — but NOT backend-gated.** Task state lives under
+  `~/.openfused/app/` and is reached by the `_core.task-management` UDFs. The `_core` project is
+  a local project, so its UDFs **always execute on a LOCAL compute backend (the consuming host),
+  regardless of the requesting project's configured env.** So the task-board functions for
+  AWS-backed (and any other) projects exactly as it does for local ones — there is **no
+  non-local-backend gate**. The locality requirement is about the *consuming host*, not the
+  project's backend.
+- The component is therefore available on the surfaces that **have a control-plane host + an
+  injected `udfs` executor**:
+  - **A control-plane consumer host** (now external — Flow, `fusedio/flow`) — available.
+  - **Parley** (`widget push` / `widget watch` / `widget open`, the `widget-host/` viewer) —
+    **available** when the host wires the `udfs` executor: it then rides the local tasks UDFs +
+    `udfs` executor.
   - **Deployed-serve bundle** (`widget.html`) — **unavailable**: a public JSON-UDF URL has no
-    app host, no local task store, and no injected `udfs` executor. The component renders a
-    single `EmptyState`-style **"Task board unavailable here"** card and performs no read and no
-    write. This is the same render-everywhere-but-degrade discipline the map widgets use for the
-    deployed bundle (`internal-requirements.md`).
+    control-plane host, no local task store, and no injected `udfs` executor. The component
+    renders a single `EmptyState`-style **"Task board unavailable here"** card and performs no
+    read and no write. This is the same render-everywhere-but-degrade discipline the map widgets
+    use for the deployed bundle (`internal-requirements.md`).
 - **Detection** is by capability, not by backend: the component is unavailable exactly when the
   bridge carries no real `udfs` executor (the `createStaticBridge` no-op stub — `surfaces.md`
-  §10 / `ui-architecture.md` §13). The deployed bundle keeps that stub; the app injects the real
-  one. (The exact capability probe is a build-time detail, owned by the component +
-  `spec/json-ui-app.md`.)
+  §10 / `ui-architecture.md` §13). The deployed bundle keeps that stub; a control-plane host
+  injects the real one. (The exact capability probe is a build-time detail, owned by the
+  component + the consuming host.)
 
 ### View-state model (all client React state)
 
@@ -85,7 +86,8 @@ OpenFused-owned primitive is added and how an interaction leaves the widget).
   | `sortDir` | `"asc" \| "desc"` | `"desc"` |
   | `collapsedGroups` | `string[]` (collapsed group keys, list view only) | `[]` |
 
-  This is the `TasksListViewState` shape lifted verbatim from `inloop/src/ui/components/TasksList.tsx`.
+  This is the `TasksListViewState` shape lifted verbatim from a consuming control-plane app's
+  `TasksList` component (now external — Flow, `fusedio/flow`: `src/ui/components/TasksList.tsx`).
 - **Persistence to `localStorage`.** The view state is persisted under a key derived from a
   `viewStateKey` (defaults merged on load, write-through on every change), mirroring
   `TasksList`'s `openfused:tasks-view:${viewStateKey}`. The key is **per-(project, surface)**
@@ -113,8 +115,9 @@ OpenFused-owned primitive is added and how an interaction leaves the widget).
   (navigation is an app/router-only concern). The widget owns the **route shape** via two
   overridable template props — **`taskHref`** (default `/tasks/:taskId`) and **`boardHref`**
   (default `/projects/:project/widget/:stem`) — interpolates the ids, and calls `host.navigate(path)`.
-  The **app** fills `navigate` once at the root (`inloop/src/ui/OpenfusedHostProvider.tsx`, inside the
-  router) with a react-router push. **Inert fallback (the affordance check):** when no host provides
+  A **control-plane consumer host** (now external — Flow, `fusedio/flow`) fills `navigate` once at
+  the root (its `OpenfusedHostProvider`, inside the router) with a react-router push. **Inert
+  fallback (the affordance check):** when no host provides
   `navigate` (the deployed-serve bundle / parley standalone), the open callbacks are `undefined`, so
   every row renders its **inert variant** — no click handler, no pointer cursor, and the board link
   is **hidden** (surfaces.md §11.2: render the non-linking variant, never a crash). A click that ends
@@ -142,8 +145,9 @@ OpenFused-owned primitive is added and how an interaction leaves the widget).
 
 ### Tree view (AS-BUILT)
 
-- A **delegation tree** ported 1:1 from the app's `TaskTree` (`inloop/src/ui/lib/taskTree.ts` +
-  `inloop/src/ui/components/TaskTree.tsx`; `spec/app-task-tree.md` §1–§4). The `parentId` graph is the
+- A **delegation tree** ported 1:1 from a control-plane app's `TaskTree` (now external — Flow,
+  `fusedio/flow`: `src/ui/lib/taskTree.ts` + `src/ui/components/TaskTree.tsx`). The `parentId`
+  graph is the
   **skeleton** (indentation + collapse/expand caret), and `blockedBy` is an **annotation** — a
   "waiting on TASK-NN" badge (only for blockers not yet `completed`) + a hover/focus highlight of a
   node's blockers and dependents. The two graphs are never conflated: a `blockedBy` edge never moves
@@ -182,9 +186,9 @@ OpenFused-owned primitive is added and how an interaction leaves the widget).
   task detail page afterward. **Not yet wired through `_core`:** `agentId` (assignee-on-create
   is not yet a parameter of `_core.create`, so a create via the board lands unassigned).
   This keeps the widget's write surface to "mutate task state," not "run an agent."
-- The agent-picker's option source is a build-time detail (the app's available-agents list,
-  reached as a host capability or a second read ref) — flag during implementation; it does not
-  change the create contract above.
+- The agent-picker's option source is a build-time detail (the consuming host's available-agents
+  list, reached as a host capability or a second read ref) — flag during implementation; it does
+  not change the create contract above.
 
 ### Keyboard shortcuts (GRILL #3)
 
@@ -194,10 +198,11 @@ OpenFused-owned primitive is added and how an interaction leaves the widget).
   create-task modal (GRILL #1), **`⌘K` / `Ctrl+K`** → the command palette / equivalent quick
   action. Listeners are ignored while a text field (the search `Input`, the create modal's
   `Textarea`, the agent picker) is focused — typing "c" in search must not open the modal.
-- **This is an accepted app-host-surface coupling.** A `document`-scoped listener is global,
+- **This is an accepted control-plane-surface coupling.** A `document`-scoped listener is global,
   unlike the wrapper-scoped `onKeyDown` discipline `video-review` uses; it is acceptable here
-  because the task-board only mounts on the app-host surfaces (app + parley) — on the
-  deployed-serve bundle it shows "unavailable" and never mounts the listeners. The mount/unmount
+  because the task-board only mounts on the control-plane consumer surfaces (a host + the parley)
+  — on the deployed-serve bundle it shows "unavailable" and never mounts the listeners. The
+  mount/unmount
   lifecycle is the guard against leaking listeners across views. A second mounted board (unusual)
   sharing the same `document` shortcuts is a known edge — last-mounted wins; flag if it arises.
 
@@ -226,7 +231,8 @@ OpenFused-owned primitive is added and how an interaction leaves the widget).
   `_core` project is a local project), so the read works for AWS-backed projects too. This
   component's contract is only the *ref name*, the *row shape* (seam ①), and the *default SQL*
   — not the UDF body internals.
-- **Row shape (seam ①)** — derived from the `Task` type (`inloop/src/ui/types/index.ts`):
+- **Row shape (seam ①)** — derived from the `Task` type (a consuming control-plane app's
+  `src/ui/types/index.ts`; now external — Flow, `fusedio/flow`):
   `id` (string), `project` (string), `number` (int → rendered "TASK-01"), `title`,
   `description`, `status` ∈ `{pending, todo, in_progress, blocked, completed, failed,
   cancelled}`, `agentId` (string | null), `createdBy`, `createdAt`, `updatedAt` (ISO 8601),
@@ -241,16 +247,16 @@ OpenFused-owned primitive is added and how an interaction leaves the widget).
   selection/feedback value — `spec/json-ui-data.md`); `isLive` / `liveRunCount` are plain scalars
   and may be filtered/sorted in `props.sql` overrides.
 - `project` prop scoping: `project: "<name>"` resolves the board under that project's context;
-  `project: "all"` (or unset → all) needs the app's **global resolve context** — the per-project
-  resolve daemon (`POST /api/projects/:name/widget-data`) has no project-less mode today, so the
-  global board is new app plumbing (DESIGN decision 9; owned by the app/data teams, consumed
-  here as a contract).
+  `project: "all"` (or unset → all) needs the consuming host's **global resolve context** — the
+  per-project resolve daemon (`POST /api/projects/:name/widget-data`) has no project-less mode
+  today, so the global board is plumbing the consuming host provides (DESIGN decision 9; owned by
+  the consuming host — now external, Flow `fusedio/flow` — consumed here as a contract).
 
 ### Writes (the executor seam — seams ③ + ⑤)
 
 The json-ui resolve plane is read-only by construction, so a write rides the **generic
 event-triggered executor** (`bridge.udfs.execute` → the host `POST /api/udf-exec` route —
-spec/json-ui-app.md §11, the same seam a `button`'s `executor` prop fires), **not** the read
+surfaces.md §10, the same seam a `button`'s `executor` prop fires), **not** the read
 query. The board fires the appropriate `_core.task-management` UDF, with the mutation passed
 as a flat overrides map:
 
@@ -284,7 +290,7 @@ as a flat overrides map:
   #156) folded writes *into the read query* via a `mutations` ref kwarg; that read-SQL-path fold
   is **superseded** — the read is now strictly read-only and writes ride the §11 executor above.
   See `task-board.tsx` (outer `TaskBoard` — `fireMutation` / `onMoveTask` / `onCreateTask`) and
-  `spec/json-ui-app.md` §11 + `spec/json-ui-data.md` § Task-board data.
+  `surfaces.md` §10 + `spec/json-ui-data.md` § Task-board data.
 
 ### Host boundary (seam ②)
 
@@ -314,7 +320,7 @@ as a flat overrides map:
   `onOpenTask`/`onOpenBoard` from the generic `OpenfusedHost.navigate` (`useOpenfusedHost`) plus the
   `taskHref`/`boardHref` templates — both `undefined` when the host has no `navigate`, so the views
   render their inert (non-linking) rows. The assignee chip shows the raw `agentId` (resolving it to a
-  name would need the app's `/api/agents` roster — out of scope for the routing-only host seam). When
+  name would need the consuming host's `/api/agents` roster — out of scope for the routing-only host seam). When
   the bridge carries no real `udfs` executor (the deployed-serve bundle — see § Where it renders) the
   outer component renders the unavailable card and never mounts the view; the project's backend never gates it.
 
@@ -331,11 +337,11 @@ as a flat overrides map:
 
 | prop | type | default | description |
 |---|---|---|---|
-| `project` | `string` | `"all"` | Project name to scope the board to, or `"all"` for every project. `"all"` needs the app's global resolve context. |
+| `project` | `string` | `"all"` | Project name to scope the board to, or `"all"` for every project. `"all"` needs the consuming host's global resolve context. |
 | `sql` | `string` (optional) | `SELECT * FROM {{_core.task-management.read?rev=$ofTasksRev}}` | Read SQL over the `_core.task-management.read` cross-project ref (read-only). The default carries the `rev` refresh ref kwarg bound to the `ofTasksRev` param, which the board bumps after each write to re-resolve (mutate-then-refetch). An override **must keep** that `?rev=$ofTasksRev` kwarg (or the board stops refreshing after writes) AND the seam-① row columns (the list/kanban logic reads them by name). Writes do **not** ride this query — they fire `_core.task-management.update_status` / `_core.task-management.create` through the executor seam (§ Writes). |
 | `defaultView` | `enum("list","board","tree")` (optional) | `"list"` | Initial view before any persisted `localStorage` state: list, kanban board, or the `parentId` delegation tree. |
 | `defaultGroupBy` | `enum("none","status","assignee")` (optional) | `"status"` | Initial grouping before persisted state. |
-| `taskHref` | `string` (optional) | `"/tasks/:taskId"` | Route template for a task-row click — `:taskId` is interpolated, then handed to the host's generic `navigate(path)` (`OpenfusedHost`, surfaces.md §11). Rendered only when a host provides `navigate` (the app surface); off-host the row is inert. |
+| `taskHref` | `string` (optional) | `"/tasks/:taskId"` | Route template for a task-row click — `:taskId` is interpolated, then handed to the host's generic `navigate(path)` (`OpenfusedHost`, surfaces.md §11). Rendered only when a host provides `navigate` (a control-plane consumer surface); off-host the row is inert. |
 | `boardHref` | `string` (optional) | `"/projects/:project/widget/:stem"` | Route template for a root task's widget-board link — `:project` and `:stem` are interpolated, then handed to `host.navigate(path)`. The link is hidden when the host has no `navigate`. |
 | `style` | `string` (optional) | — | Universal inline CSS declaration string, parsed and merged over defaults. |
 | `_queryId` | `string` | — | (internal; resolver-stamped, not author-set) |
@@ -368,26 +374,28 @@ as a flat overrides map:
   per-lane layouts; this is the first. The render-time `{element}`-single-prop contract still
   holds — `TaskBoard` builds its own internal markup from the resolved rows, it does not render
   child `UINode`s (`hasChildren: false`).
-- **Phased migration** (DESIGN decision 10 / ADR 0001, owned by the app team; here for context):
+- **Phased migration** (DESIGN decision 10 / ADR 0001, owned by the consuming host's team; here
+  for context):
   1. Build `task-board` + the executor write seam (`bridge.udfs.execute` → the host `/api/udf-exec`
      route) **behind** the existing native page (coexist, no route change). Read/write via
      `_core.task-management.*` UDFs.
   2. Wire it into the **project-scoped** Tasks tab first (cleanest resolve fit), then the
      **global** `/tasks` page (needs the global resolve context / host-project selection).
-  3. **Flip** the app's task route to render the widget, then **delete** the native `TasksList`
-     / `KanbanBoard` / `TaskColumns`. The flip is **gated by reactivity**: v1 mutate-then-refetch
-     is visibly sub-parity (drag latency; stale on background writes), so expect to live in
-     "coexist" until optimism + polling/SSE land (ADR 0002).
-- **Comment / feedback overlay (GRILL #6).** The parley is **enabled** for the task-board (it
-  rides the same Express process as the app — locked DESIGN decision 2 — so it gets the board and
-  its `udfs` executor for free; it is **not** an "unavailable" surface). The parley comment
-  overlay (`comments.md`) anchors comments to `[data-ofw-node]` markers; on an interactive,
+  3. **Flip** the consuming host's task route to render the widget, then **delete** the native
+     `TasksList` / `KanbanBoard` / `TaskColumns`. The flip is **gated by reactivity**: v1
+     mutate-then-refetch is visibly sub-parity (drag latency; stale on background writes), so
+     expect to live in "coexist" until optimism + polling/SSE land (ADR 0002). (This migration is
+     now carried out in the external Flow app, `fusedio/flow`.)
+- **Comment / feedback overlay (GRILL #6).** The parley is **enabled** for the task-board (when a
+  host wires the `udfs` executor it gets the board and its `udfs` executor; it is **not** an
+  "unavailable" surface). The parley comment overlay (`comments.md`) anchors comments to
+  `[data-ofw-node]` markers; on an interactive,
   internally-scrolling, drag-enabled board, **v1 anchors at the board ROOT node only** — the board
   **opts out of per-card comment anchoring** for v1 (per-card pins over a drag surface are a
   follow-up). A human can comment "on the board"; pinning a comment to an individual card is out
   of v1 scope.
 - Cross-references: `catalog.md` (the row + parity note), `spec/ui/json-ui.md` § Authoring &
   catalog (the 4th spec-owned primitive), `spec/json-ui-data.md` (the read-only-plane write
-  exception + the `$param`-vs-array/object rule), `spec/json-ui-app.md` §11 (the generic
-  event-triggered executor — the board's write seam — + the global resolve context), and the
+  exception + the `$param`-vs-array/object rule), `surfaces.md` §10 (the generic
+  event-triggered executor — the board's write seam — + the host resolve context), and the
   handoff ADRs `0001` / `0002`.

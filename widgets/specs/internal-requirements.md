@@ -147,13 +147,13 @@ without a model turn:
     one component that needs a real `udfs` — `task-board` (its **write** channel) — gets it
     from a **host-injected, general per-name, full-privilege, local executor** (not
     restricted to the reserved mutate ref), never from `createStaticBridge` itself. The
-    `task-board` is **enabled wherever a real executor is injected** (the app and the
-    parley, which share the Express process) and degrades to **"unavailable" only where the
-    stub stands in** (the deployed-serve bundle) — detection is executor presence, not a
-    backend check. The render surface declares the contract and consumes whatever `udfs` the
-    bridge in context carries; it introduces **no** import from `inloop/`. Full contract:
-    [`surfaces.md`](./surfaces.md) §10; physical/per-surface table:
-    `spec/ui/ui-architecture.md` §13. (Proposed, branch `feat/task-board-widget`.)
+    `task-board` is **enabled wherever a real executor is injected** (a control-plane consumer
+    host that wires `execUrl` — now external, Flow, `fusedio/flow`) and degrades to
+    **"unavailable" only where the stub stands in** (the deployed-serve bundle) — detection is
+    executor presence, not a backend check. The render surface declares the contract and
+    consumes whatever `udfs` the bridge in context carries; it introduces **no** import from
+    any consuming host. Full contract: [`surfaces.md`](./surfaces.md) §10; physical/per-surface
+    table: `spec/ui/ui-architecture.md` §13. (Proposed, branch `feat/task-board-widget`.)
 - **Initial-params harvesting** (`harvestInitialParams`) and **comment merge-forward**
   (`mergeLiveComments`) keep the first paint and the parley comment loop consistent with
   what the server resolved.

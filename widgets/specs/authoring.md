@@ -13,7 +13,7 @@ runs (the `{{ref}}` / `$param` grammar, resolution, security) is the host's, in
 `spec/json-ui-data.md`. This file cross-links those; it does not restate them.
 
 Source of these claims: `spec/ui/json-ui.md` (the authoring surface), the in-scope
-component narrative in `spec/ui/json-ui-widgets-batch1.md`, and the package's renderer,
+component narrative in [`catalog.md`](./catalog.md), and the package's renderer,
 the universal-prop declaration, and the `div` container component.
 
 ---
@@ -218,7 +218,7 @@ field store and broadcasts **on submit** (a descendant `button`), not while typi
 
 Unlike the Fused application, charts/tables inside a form update **on submit**, not live
 as you type — OpenFused has no client DuckDB to re-query mid-edit. Same config, same final
-result, different timing (`spec/ui/json-ui-widgets-batch1.md`; [`widgets/form.md`](./widgets/form.md)).
+result, different timing ([`catalog.md`](./catalog.md); [`widgets/form.md`](./widgets/form.md)).
 
 ---
 
@@ -248,7 +248,7 @@ result, different timing (`spec/ui/json-ui-widgets-batch1.md`; [`widgets/form.md
 - [`authoring.md`](./authoring.md)'s host counterparts:
   - `spec/json-ui-data.md` — the SQL `{{ref}}` / `$param` grammar, resolution, the row
     envelope, run-fresh, the hardened-DuckDB boundary, and caching (the data half).
-  - `spec/json-ui-app.md` — the app's native render + per-project resolve daemon (the
-    single viewer that consumes these configs).
+  - the consuming control-plane app's native render + per-project resolve daemon now
+    lives in fusedio/flow.
   - `spec/json-ui-local.md` — the local workspace + parley (`widget open` / `widget push`
     / `widget watch`) that render the feedback surface above.

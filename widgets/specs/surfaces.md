@@ -1,6 +1,7 @@
 # `@fusedio/widgets` — exposed surfaces
 
-What the package gives its consumers (`inloop/`, `ui/`) and the Python server. The package is
+What the package gives its consumers (`widget-host/`, `static-ui/`, and external consumers such
+as the Flow control-plane app `fusedio/flow`) and the Python server. The package is
 **consumed as source**: it is private, ESM-only, and its export map opens every module by
 subpath, so a consumer imports by package name + subpath (e.g. `@fusedio/widgets/render`).
 The export map publishes three things: a convenience barrel at the package root, every
@@ -47,7 +48,8 @@ also a named export used by the generator and tests. The universal-prop module e
 
 ## 4. The reactive host machinery
 
-For a consumer that hosts the renderer (the native app, the standalone bundle):
+For a consumer that hosts the renderer (a native React host — the `widget-host/` viewer/parley
+or an external control-plane app like Flow — or the standalone bundle):
 
 **`@fusedio/widgets/static-bridge`**
 - `createStaticBridge` → `FusedWidgetBridge` — the mostly read-only bridge: SQL queries read
@@ -127,12 +129,14 @@ contract and the only thing the runtime consumes from this package without JS.
 > namespace, whose live `execute(udfName, overrides)` method is the `task-board`'s **write**
 > channel (the generic event-triggered executor seam, shared with a `button`'s `executor`
 > prop). `execute` is real wherever the host wires `createStaticBridge`'s `execUrl` (the
-> **app + parley** surfaces) and degrades to a structured "unavailable" error elsewhere — it
-> is an **app-host-surface-only** capability. The physical-architecture consequences (which
+> **`widget-host/` parley surface** and external control-plane consumers such as Flow,
+> `fusedio/flow`) and degrades to a structured "unavailable" error elsewhere — it is a
+> **resolve-daemon-host-only** capability. The physical-architecture consequences (which
 > package gains `@dnd-kit`, the per-surface real/stub table) are in
 > [`spec/ui/ui-architecture.md`](../../../spec/ui/ui-architecture.md) §13; the data/write
 > grammar, the reserved refs, and the security boundary are in `spec/json-ui-data.md`; the
-> app-side executor and the global resolve context are in `spec/json-ui-app.md`.
+> resolve-daemon executor and the global resolve context are the consuming host's concern
+> (the external Flow app, `fusedio/flow`).
 
 ### 10.1 The namespace shape (external, pinned — we wrap, we do not extend)
 
@@ -215,8 +219,8 @@ overrides }` (plus an optional `format`) to that URL and passes the host's `{ da
 JSON envelope straight through (a transport or non-JSON failure becomes a structured
 error). There is **no wrapping bridge** and **no per-name snapshot/listener store** — the
 seam is request/response, not subscribe-and-snapshot. The transport lives inside
-`createStaticBridge` (not in an app component) for symmetry with the data store's resolve
-fetch, so the app's UI layer stays fetch-free (its import-boundary gate).
+`createStaticBridge` (not in a consumer-side component) for symmetry with the data store's
+resolve fetch, so a consuming host's UI layer stays fetch-free (its import-boundary gate).
 
 **With no `execUrl`, `execute` degrades to a structured "unavailable" error.** Every
 surface that does not pass one — the deployed-serve bundle, the MCP-Apps sandbox, any
@@ -224,22 +228,23 @@ future host — gets an `execute` that returns `{ data: null, error: "UDF execut
 unavailable on this surface." }`, the same graceful posture as a null `ActionSink`. A
 `task-board` rendered there cannot mutate (the press is a visible no-op error, not a crash).
 This preserves the package's "mostly read-only bridge" invariant
-([`internal-requirements.md`](./internal-requirements.md) §9) for all non-app surfaces: the
-read channel still works (it rides the resolve plane), only the write seam is inert. The
-dormant `requestReexecute` / `getOutputSnapshot` / `subscribeOutput` stubs stay no-ops on
-every surface, opt-in or not.
+([`internal-requirements.md`](./internal-requirements.md) §9) for all surfaces without an
+`execUrl`: the read channel still works (it rides the resolve plane), only the write seam is
+inert. The dormant `requestReexecute` / `getOutputSnapshot` / `subscribeOutput` stubs stay
+no-ops on every surface, opt-in or not.
 
 **The real executor is the host's, not the package's.** `createStaticBridge` owns the
-transport, but the **host that runs the UDF** is whatever the `execUrl` points at — the
-`openfused inloop` app's `/api/projects/:name/udf-exec` proxy (token added server-side) →
-the resolve daemon's `POST /api/udf-exec`. That executor is a **general per-name** runner:
+transport, but the **host that runs the UDF** is whatever the `execUrl` points at — for an
+external control-plane consumer (Flow, `fusedio/flow`), its `/api/projects/:name/udf-exec`
+proxy (token added server-side) → the resolve daemon's `POST /api/udf-exec`. That executor is
+a **general per-name** runner:
 it is **not** restricted to the reserved mutate ref — it runs whatever UDF name `execute`
 names, with **full UDF-execution privileges** against the **local** task store (the
 in-sandbox `openfused` accessor), **not** the hardened read sandbox alone. It is
-**app-owned and local-only**, and runs on a local compute backend regardless of the
+**consuming-host-owned and local-only**, and runs on a local compute backend regardless of the
 project's configured env (see §10.4 + `spec/ui/ui-architecture.md` §13.3). The host
-resolution detail (the one-query plan, the accessor, cache-off) is specified in
-`spec/json-ui-app.md`.
+resolution detail (the one-query plan, the accessor, cache-off) is the consuming host's
+concern (the external Flow app, `fusedio/flow`).
 
 ### 10.4 What the executor must provide (the host contract this section consumes)
 
@@ -267,26 +272,26 @@ the `_core.task-management` UDFs are local-only (the `_core` project is a local 
 the requesting project's compute backend is **irrelevant** to whether the `task-board` works.
 The component decides between rendering and the "unavailable" card purely by **whether the
 host wired an `execUrl`** — an `execUrl` → a real `execute` → render; no `execUrl` → `execute`
-returns the structured "unavailable" error → the inert card. This makes it available on
-**app** (`execUrl` passed) and unavailable on the **deployed-serve bundle** (no `execUrl`,
-no `_core` project in scope). The exact probe (a capability flag the host sets vs. the
-component inferring from the structured "unavailable" error) is a component +
-`spec/json-ui-app.md` build detail, not a package-export concern — but it keys off `execUrl`
-presence, never the env.
+returns the structured "unavailable" error → the inert card. This makes it available on a
+**control-plane consumer host** (`execUrl` passed; e.g. the external Flow app, `fusedio/flow`)
+and unavailable on the **deployed-serve bundle** (no `execUrl`, no `_core` project in scope).
+The exact probe (a capability flag the host sets vs. the component inferring from the
+structured "unavailable" error) is a component + consuming-host build detail, not a
+package-export concern — but it keys off `execUrl` presence, never the env.
 
 ---
 
-## 11. Host-capability context — non-SDK app capabilities (proposed; `task-board`)
+## 11. Host-capability context — non-SDK host capabilities (proposed; `task-board`)
 
 > **Status: AS-BUILT** (branch `feat/task-board-widget`). This section specifies the
-> render-surface contract for **app-provided host capabilities that have no SDK bridge
+> render-surface contract for **host-provided capabilities that have no SDK bridge
 > namespace** — the general extension point the `task-board` uses for `navigate(path)`
 > (click-through to a task's detail / its widget board). Shipped as
 > `openfused-host-context.ts` (`OpenfusedHostContext` + `useOpenfusedHost()`), provided by the
-> app's `OpenfusedHostProvider`. The physical/per-surface table is in
+> consuming host's `OpenfusedHostProvider`. The physical/per-surface table is in
 > [`spec/ui/ui-architecture.md`](../../../spec/ui/ui-architecture.md) §13.3; the
-> `navigate` implementation (browser route push) is app-owned and specified in
-> `spec/json-ui-app.md`.
+> `navigate` implementation (browser route push) is consuming-host-owned (the external Flow
+> control-plane app, `fusedio/flow`).
 
 ### 11.1 Why a separate context, not the bridge
 
@@ -303,12 +308,12 @@ alongside the bridge by whatever host mounts the renderer.
 - The package exports the **host-capability context** `OpenfusedHostContext`
   (`openfused-host-context.ts`) and a `useOpenfusedHost()` hook (returns `{}` off-host, so
   readers don't null-check the context itself). The context value is a record of **optional**
-  app-provided capabilities:
+  host-provided capabilities:
 
   ```ts
   interface OpenfusedHost {
-    /** Navigate the host to an in-app path (e.g. a task detail). Browser route push
-     *  on the app surface; undefined on surfaces with no router. */
+    /** Navigate the host to an in-host path (e.g. a task detail). Browser route push
+     *  on a control-plane host surface; undefined on surfaces with no router. */
     navigate?: (path: string) => void;
     /** Notify the host to RUN an already-created task — the dispatch seam. The
      *  task-board creates the record via the _core CRUD UDFs (CRUD stays decoupled
@@ -319,7 +324,7 @@ alongside the bridge by whatever host mounts the renderer.
     runTask?: (taskId: string) => Promise<{ error?: string }>;
     /** Open the host's New-task composer modal in place, optionally pre-filled
      *  (e.g. agent-detail's "New task" pre-assigns the agent). The composer is the
-     *  app's own create path (it creates + runs); undefined on surfaces with no
+     *  host's own create path (it creates + runs); undefined on surfaces with no
      *  modal → caller falls back to a navigate route. */
     openNewTask?: (defaults?: {
       agentId?: string;
@@ -333,17 +338,18 @@ alongside the bridge by whatever host mounts the renderer.
   > move / cancel / assign) are all pure data ops the `_core.task-management` CRUD UDFs
   > satisfy — **CRUD stays decoupled from the host.** But one thing the UDFs *cannot* do is
   > spawn a run: run-spawning (`startRun` → the §13.4 assignment wakeup) lives only in the
-  > app's Express dispatcher, with no UDF bridge. So the board **creates the record via
-  > `_core`**, then calls `runTask(id)` to have Express *react* and start the run — the host
-  > creates nothing, it only dispatches an already-created task. Hosts with no dispatcher
-  > leave `runTask` undefined; the record persists (created by `_core` all the same) and
-  > boot-redispatch runs it on the next app start. This keeps the create/CRUD circuit in one
-  > place (the UDFs) and makes Express a pure reactor.
+  > consuming host's dispatcher (e.g. the external Flow app's Express dispatcher), with no UDF
+  > bridge. So the board **creates the record via `_core`**, then calls `runTask(id)` to have
+  > the host *react* and start the run — the host creates nothing, it only dispatches an
+  > already-created task. Hosts with no dispatcher leave `runTask` undefined; the record
+  > persists (created by `_core` all the same) and boot-redispatch runs it on the host's next
+  > start. This keeps the create/CRUD circuit in one place (the UDFs) and makes the dispatcher
+  > a pure reactor.
 
-- **The host provides it; the package only declares it.** The app supplies `{ navigate }`
-  when it mounts the renderer (`RenderTree` already wraps the tree in the bridge context;
-  the host provides this context as a sibling provider). The render surface imports
-  **nothing** from `inloop/` — the same one-way-layering guarantee as the bridge.
+- **The host provides it; the package only declares it.** The consuming host supplies
+  `{ navigate }` when it mounts the renderer (`RenderTree` already wraps the tree in the bridge
+  context; the host provides this context as a sibling provider). The render surface imports
+  **nothing** from any consuming host — the same one-way-layering guarantee as the bridge.
 - **Every capability is optional and degrades gracefully.** A host that does not provide
   `navigate` (the deployed bundle — no router) leaves it `undefined`; a component reading
   it renders the inert variant (a row/card that does not link), **never a crash** — the

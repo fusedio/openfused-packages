@@ -12,8 +12,9 @@ stays a scalar display, `html` stays the raw-HTML escape hatch, and `markdown`
 owns prose.
 
 The rendering is the shared `MarkdownView` from `@fusedio/widgets`
-(`src/markdown-view.tsx`) — the **same** renderer the app task thread uses
-(`inloop/src/ui/components/Markdown.tsx`). One markdown implementation, two surfaces.
+(`src/markdown-view.tsx`) — the **same** renderer a consuming control-plane app's task thread
+uses (that consumer is now external — Flow, `fusedio/flow`). One markdown implementation, two
+surfaces.
 
 ## Expectation
 - Renders a `.ofw-md` wrapper containing the parsed markdown. Parsing is
@@ -25,7 +26,7 @@ The rendering is the shared `MarkdownView` from `@fusedio/widgets`
   the catalog trust model. Use the `html` widget when you need raw HTML.
 - Styling is theme-portable: `.ofw-md` (widget.css) inherits the host's text
   `color` and sets only spacing/structure/translucent accents, so the same rules
-  read on the dark widget card and the light/dark app thread.
+  read on the dark widget card and the light/dark task thread of a consuming host.
 - DATA-BOUND via the `sql` prop, mirroring `text`: first row / first column of the
   DuckDB result, coerced to string, rendered **as markdown**. The hook stays inert
   (`enabled: !!sql`) when no `sql` is authored.
@@ -54,4 +55,4 @@ The rendering is the shared `MarkdownView` from `@fusedio/widgets`
   `ComponentRenderProps`) plus the shared `MarkdownView`. No ui-kit primitives.
 - `MarkdownView` imports no CSS itself (the generator loads the widget catalog
   under node/tsx, which cannot parse CSS); consumers must have `widget.css`
-  loaded — the app does so globally in `main.tsx`.
+  loaded — a consuming host loads it globally in its entry (`main.tsx`).
