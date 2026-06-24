@@ -1,0 +1,35 @@
+{
+  "name": "@fusedio/widget-sdk",
+  "version": "0.3.1",
+  "description": "SDK for building custom json-ui components for the Fused workbench",
+  "license": "Apache-2.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "bundle": "tsc --noEmit && esbuild src/index.ts --bundle --outfile=dist/bundle.js --format=esm --platform=browser --external:react --external:react/jsx-runtime --external:zod --minify",
+    "prepublishOnly": "bun run clean && bun run build && bun run bundle"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "typescript": "^5.4.3",
+    "@types/react": "^18.3.11",
+    "zod": "^4.3.6"
+  }
+}
