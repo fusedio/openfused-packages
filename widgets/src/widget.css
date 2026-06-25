@@ -101,27 +101,45 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
    map or chart can leak on top of the New task / New project modals. */
 .ofw-dashboard { display: flex; flex-direction: column; gap: 20px; isolation: isolate; }
 
-/* ---------------- @kit token bridge (scoped to the widget tree) ----------------
-   A handful of widgets (slider, dropdown, sql-table, text-input) render through
-   shared `@kit` ui-kit primitives whose accent is the app shell's grayscale
-   `--primary` (oklch(0.985 0 0)). Inside a widget tree the house accent is the
-   "Signal" lime, so re-point the @kit accent tokens to the same lime — SCOPED to
-   `.ofw-dashboard` so the app shell's own grayscale primary is untouched. This is
-   what unifies the slider value chip, the Radix Select, the SliderRange fill, and
-   input focus rings onto the one lime accent instead of three competing colors. */
-.ofw-dashboard {
+/* ---------------- @kit token bridge — OPT-IN, lime accent ----------------
+   A handful of widgets (slider, dropdown, sql-table, button, text-input) render
+   through shared `@kit` ui-kit primitives whose accent is the app shell's
+   grayscale `--primary`. On a STANDALONE widget dashboard the house accent is the
+   "Signal" lime, so there re-point the @kit accent tokens to the same lime — but
+   ONLY under `.ofw-dashboard--accent` (set by WidgetView when `accent` is passed:
+   the widget board page + the dev harness). App-EMBEDDED widget surfaces (the
+   task-thread feedback cards, the inbox, the task-board / agent-detail / secrets
+   containers) render the bare `.ofw-dashboard` and keep the app's neutral primary
+   — openfused app chrome must NOT carry the data accent. Charts/links stay lime
+   regardless (they use --ofw-* tokens, not the @kit primary). */
+.ofw-dashboard--accent {
   /* the base shadcn tokens drive the `bg-primary` / `text-primary` utilities */
   --primary: var(--ofw-accent);
   --primary-foreground: #141a02;
   --ring: var(--ofw-accent);
   /* the @theme-emitted `--color-*` aliases are what `var(--color-primary)` /
-     `ring-ring` resolve to directly (e.g. the SliderRange track gradient and
-     every focus ring). They do NOT re-substitute the scoped `--primary`, so they
-     must be re-pointed to the lime accent explicitly or the track/rings stay
-     grayscale. */
+     `ring-ring` resolve to directly (the SliderRange track gradient, focus
+     rings). They do NOT re-substitute the scoped `--primary`, so re-point them
+     too or the track/rings stay grayscale. */
   --color-primary: var(--ofw-accent);
   --color-primary-foreground: #141a02;
   --color-ring: var(--ofw-accent);
+}
+
+/* Even on an accent dashboard, the control-plane surfaces (task board, agent
+   detail, secrets manager) keep the NEUTRAL primary — they are app-native control
+   panels, not data viz. Stamped via `data-ofw-type` on the render wrapper
+   (render.tsx); display:contents still carries custom-property inheritance, and
+   this subtree rule sits closer than .ofw-dashboard--accent so it wins. */
+[data-ofw-type="task-board"],
+[data-ofw-type="agent-detail"],
+[data-ofw-type="secrets-manager"] {
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --ring: oklch(0.439 0 0);
+  --color-primary: oklch(0.985 0 0);
+  --color-primary-foreground: oklch(0.205 0 0);
+  --color-ring: oklch(0.439 0 0);
 }
 
 /* Task-board fill (the app Tasks surface passes the `fill` prop): the board's

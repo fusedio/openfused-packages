@@ -148,9 +148,13 @@ export function RenderNode({
     );
   }
   // The `data-ofw-node` marker carries the node's stable path for page-level
-  // comment anchoring (display:contents → it generates no layout box).
+  // comment anchoring; `data-ofw-type` carries the component type so CSS can
+  // scope per widget (e.g. the control-plane surfaces opt out of the lime accent
+  // — widget.css). `display:contents` generates no layout box but still
+  // participates in custom-property inheritance, so tokens set here reach the
+  // widget's descendants.
   return (
-    <div data-ofw-node={path} style={DISPLAY_CONTENTS}>
+    <div data-ofw-node={path} data-ofw-type={node.type} style={DISPLAY_CONTENTS}>
       <NodeInner node={node} path={path} />
     </div>
   );
