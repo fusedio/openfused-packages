@@ -346,18 +346,25 @@ function layoutWithFoldersDag(
   }
 
   const placedById = new Map(laidAll.map((n) => [n.id, n]));
+  // Nodes the USER pinned (an authored `position` on the INPUT node — dagLayout
+  // preserves it). The separation pass must NOT translate these, so a folder holding
+  // one is treated as fixed (parity with the dtv path, which keeps authored-position
+  // members in place).
+  const authoredNodeIds = new Set(nodes.filter((n) => n.position).map((n) => n.id));
   const folderBoxes: FolderBox[] = [];
   // For the separation pass: each folder's members (to translate with its box) and
-  // the user-pinned folders (excluded from separation — their geometry is authored).
+  // the FIXED folders excluded from separation — authored folder geometry OR any
+  // pinned member node.
   const folderMembers = new Map<string, CanvasNode[]>();
-  const authoredFolderIds = new Set<string>();
+  const fixedFolderIds = new Set<string>();
 
   for (const folder of folders) {
     const members = folder.nodeIds
       .map((id) => placedById.get(id))
       .filter((n): n is CanvasNode => !!n);
     folderMembers.set(folder.id, members);
-    if (folder.position || folder.size) authoredFolderIds.add(folder.id);
+    if (folder.position || folder.size || folder.nodeIds.some((id) => authoredNodeIds.has(id)))
+      fixedFolderIds.add(folder.id);
     const b = members.length > 0 ? boundsOf(members, getSize) : undefined;
 
     // Authored geometry wins (position and/or size), exactly like the dtv path.
@@ -455,7 +462,7 @@ function layoutWithFoldersDag(
   // config order is the authored, mode-independent left→right intent.
   const configIndex = new Map(folders.map((f, i) => [f.id, i]));
   const movable = folderBoxes
-    .filter((fb) => !authoredFolderIds.has(fb.id))
+    .filter((fb) => !fixedFolderIds.has(fb.id))
     .sort((a, b) => (configIndex.get(a.id) ?? 0) - (configIndex.get(b.id) ?? 0));
 
   const shifts = new Map<string, number>(); // folderId → delta along the band axis

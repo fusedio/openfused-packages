@@ -502,6 +502,29 @@ describe("layoutWithFolders (dag mode)", () => {
     expect(boxA.x).toBeLessThan(boxB.x);
   });
 
+  it("never translates a USER-PINNED member — a folder with an authored position is fixed", () => {
+    // Folder "pin" holds a node with an authored position; folder "auto" is derived.
+    // Config order places "auto" first, so the sweep would otherwise shift "pin"
+    // forward — but a pinned member must keep its exact coords (parity with the dtv
+    // path, which never moves authored-position members).
+    const nodes = [node("autoNode"), node("pinnedNode", { position: { x: 50, y: 0 } })];
+    const { nodes: out } = layoutWithFolders(
+      nodes,
+      [],
+      [folder("auto", ["autoNode"]), folder("pin", ["pinnedNode"])],
+      new Map([
+        ["autoNode", "auto"],
+        ["pinnedNode", "pin"],
+      ]),
+      fixedSize,
+      "horizontal",
+      "dag",
+    );
+    const pinned = out.find((n) => n.id === "pinnedNode")!;
+    // Authored coords survive the separation pass untouched.
+    expect(pinned.position).toEqual({ x: 50, y: 0 });
+  });
+
   // Safety property: omitting the layout mode is byte-identical to "dtv" — the
   // dag path is purely opt-in and never perturbs the default.
   it("is byte-identical between an omitted layout mode and explicit dtv", () => {
