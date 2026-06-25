@@ -56,6 +56,12 @@ import textArea from "./text-area";
 import textInput from "./text-input";
 import video from "./video";
 import videoReview from "./video-review";
+// batch 2 — KPI / trend / analytics widgets (OpenFused-owned)
+import sparkline from "./sparkline";
+import kpi from "./kpi";
+import gauge from "./gauge";
+import funnel from "./funnel";
+import calendarHeatmap from "./calendar-heatmap";
 
 /**
  * type-string → component definition. Generate.ts re-sorts on output, so this
@@ -113,4 +119,10 @@ export const componentDefs: ComponentDefMap = {
   "fused-map": fusedMap,
   // sql-runner — a named-query SOURCE container (resolver-coupled; renders everywhere)
   "sql-runner": sqlRunner,
+  // batch 2 — KPI / trend / analytics (OpenFused-owned, no app parity)
+  sparkline,
+  kpi,
+  gauge,
+  funnel,
+  "calendar-heatmap": calendarHeatmap,
 };

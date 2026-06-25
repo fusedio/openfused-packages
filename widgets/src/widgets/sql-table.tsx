@@ -140,6 +140,19 @@ function renderCell(value: unknown): string {
   return String(value);
 }
 
+// --------------------------------------------------------------- numeric detect
+// A cell counts as numeric when it is a JS number (finite) or a bigint. Empty
+// cells (null/undefined/"") are skipped — they don't disqualify a column. A
+// column is numeric when it has at least one non-empty cell AND every non-empty
+// cell is numeric. Detected columns render right-aligned with tabular numerals.
+function isNumericCell(value: unknown): boolean {
+  if (typeof value === "bigint") return true;
+  return typeof value === "number" && Number.isFinite(value);
+}
+function isEmptyCell(value: unknown): boolean {
+  return value === null || value === undefined || value === "";
+}
+
 // -------------------------------------------------------------------- component
 function SqlTable({ element }: ComponentRenderProps<SqlTableProps>) {
   const { sql, title, sortable, filterable, maxRows, selectionParam, selectionColumn } =
@@ -210,6 +223,31 @@ function SqlTable({ element }: ComponentRenderProps<SqlTableProps>) {
         : [],
     [columns, rows],
   );
+
+  // Numeric-column detection by sampling the result rows: a column is numeric
+  // when at least one cell is non-empty and every non-empty cell is a
+  // number/bigint. Threaded into the DataTable primitive (internal prop, NOT a
+  // public widget prop) so it can right-align those headers + cells with
+  // tabular numerals. Computed off the full `rows` so alignment stays stable
+  // across filtering/sorting.
+  const numericColumns = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const col of cols) {
+      let sawValue = false;
+      let allNumeric = true;
+      for (const row of rows as ReadonlyArray<Record<string, unknown>>) {
+        const v = row[col];
+        if (isEmptyCell(v)) continue;
+        sawValue = true;
+        if (!isNumericCell(v)) {
+          allNumeric = false;
+          break;
+        }
+      }
+      if (sawValue && allNumeric) set.add(col);
+    }
+    return set;
+  }, [cols, rows]);
 
   const viewRows = React.useMemo(() => {
     let out = rows as ReadonlyArray<Record<string, unknown>>;
@@ -288,6 +326,7 @@ function SqlTable({ element }: ComponentRenderProps<SqlTableProps>) {
           isSelectedValue(row[selectionColumn as string])
         }
         onRowClick={toggleRowSelection}
+        numericColumns={numericColumns}
       />
     );
   }

@@ -52,6 +52,7 @@ import {
 } from "@fusedio/widget-sdk";
 
 import { UNIVERSAL_PROPS } from "./_universal";
+import { ChartTooltip } from "./_chart-tooltip";
 import type { ComponentDef } from "./types";
 import { Card, SkeletonState, ErrorState, EmptyState } from "../components/card";
 
@@ -176,27 +177,6 @@ function compactTick(v: number): string {
   if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
   if (abs >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
   return String(v);
-}
-
-/** Lightweight tooltip (app uses shadcn classes; here a plain styled box). */
-function ChartTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ value?: number }>;
-  label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="ofw-chart-tooltip">
-      <div className="ofw-chart-tooltip__label">{label}</div>
-      <div className="ofw-chart-tooltip__value">
-        {Number(payload[0].value).toLocaleString()}
-      </div>
-    </div>
-  );
 }
 
 // -------------------------------------------------------------------- component

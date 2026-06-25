@@ -52,6 +52,15 @@ export interface DataTableProps {
   /** Called with the row when a selectable row is clicked. */
   onRowClick?: (row: Record<string, unknown>) => void
 
+  // ---- alignment (consumer-owned, internal — NOT a public widget prop) ----
+  /**
+   * Columns whose cells should render right-aligned with tabular numerals.
+   * The consumer (sql-table) detects numeric columns by sampling rows and
+   * threads the set in here; the primitive only applies the alignment class
+   * to matching th/td. No public prop is exposed for this.
+   */
+  numericColumns?: ReadonlySet<string>
+
   className?: string
 }
 
@@ -73,6 +82,7 @@ export function DataTable({
   selectable = false,
   isRowSelected,
   onRowClick,
+  numericColumns,
   className,
 }: DataTableProps) {
   return (
@@ -92,6 +102,7 @@ export function DataTable({
             {columns.map((col) => {
               const active = sortable && sortKey === col
               const arrow = active ? (sortDir === "asc" ? " ▲" : " ▼") : ""
+              const numeric = !!numericColumns?.has(col)
               return (
                 <th
                   key={col}
@@ -106,6 +117,7 @@ export function DataTable({
                   className={cn(
                     "sticky top-0 z-10 whitespace-nowrap border-b border-border bg-card px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.09em] text-muted-foreground",
                     sortable && "cursor-pointer select-none",
+                    numeric && "ofw-table__cell--num",
                   )}
                 >
                   {col}
@@ -149,7 +161,10 @@ export function DataTable({
                 {columns.map((col) => (
                   <td
                     key={col}
-                    className="whitespace-nowrap border-b border-border px-3 py-2 font-mono tabular-nums text-foreground"
+                    className={cn(
+                      "whitespace-nowrap border-b border-border px-3 py-2 font-mono tabular-nums text-foreground",
+                      numericColumns?.has(col) && "ofw-table__cell--num",
+                    )}
                   >
                     {renderCell(row[col])}
                   </td>
