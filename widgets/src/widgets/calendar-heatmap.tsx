@@ -51,9 +51,9 @@ export const calendarHeatmapProps = z
     lowColor: z
       .string()
       .optional()
-      .default("var(--ofw-panel-2)")
+      .default("rgba(130,160,200,0.06)")
       .describe(
-        "Color for empty / zero-value days (the grid background). Default is the muted panel tone.",
+        "Color for empty / zero-value days (the grid background). Default is a faint cool tint so the empty grid reads as a quiet GitHub-style scaffold rather than near-invisible.",
       ),
     highColor: z
       .string()
@@ -65,8 +65,10 @@ export const calendarHeatmapProps = z
     weeks: z
       .number()
       .optional()
-      .default(26)
-      .describe("Number of week columns to show, counting back from the latest date."),
+      .default(13)
+      .describe(
+        "Maximum number of week columns to show, counting back from the latest date. The grid frames the actual data span with about a week of padding, so it never shows more than this and often fewer.",
+      ),
     cellSize: z
       .number()
       .optional()
@@ -155,9 +157,9 @@ function CalendarHeatmapWidget({
   const {
     sql,
     title,
-    lowColor = "var(--ofw-panel-2)",
+    lowColor = "rgba(130,160,200,0.06)",
     highColor = "var(--ofw-accent)",
-    weeks = 26,
+    weeks = 13,
     cellSize = 12,
     gap = 3,
   } = props;
@@ -174,10 +176,11 @@ function CalendarHeatmapWidget({
   });
 
   // Build date→value map (case-insensitive `date`/`value` fallbacks) and track
-  // the max date present (for the grid anchor) and max value (for the color
-  // domain). A non-numeric/missing value coerces to 0.
-  const { valueMap, maxDate, maxValue } = useMemo(() => {
+  // the min + max date present (for the grid anchor and span) and max value (for
+  // the color domain). A non-numeric/missing value coerces to 0.
+  const { valueMap, minDate, maxDate, maxValue } = useMemo(() => {
     const map: Record<string, number> = {};
+    let nDate: Date | null = null;
     let mDate: Date | null = null;
     let mVal = 0;
     if (rows && rows.length > 0) {
@@ -192,21 +195,36 @@ function CalendarHeatmapWidget({
         // If a date repeats, sum it (a day's total activity).
         map[key] = (map[key] ?? 0) + value;
         if (mDate === null || d.getTime() > mDate.getTime()) mDate = d;
+        if (nDate === null || d.getTime() < nDate.getTime()) nDate = d;
         if (map[key] > mVal) mVal = map[key];
       }
     }
-    return { valueMap: map, maxDate: mDate, maxValue: mVal };
+    return { valueMap: map, minDate: nDate, maxDate: mDate, maxValue: mVal };
   }, [rows]);
 
   // Geometry: the grid ends on the week containing `maxDate` (or today). We pad
   // forward to that week's Saturday so the last column is whole, then walk back
-  // `weeks` columns. Columns are weeks (Sun..Sat top→bottom).
+  // a *right-sized* number of columns. Columns are weeks (Sun..Sat top→bottom).
   const grid = useMemo(() => {
-    const wk = Math.max(1, Math.floor(weeks));
+    const maxWk = Math.max(1, Math.floor(weeks));
     const anchor = maxDate ?? parseDate(toKey(new Date())) ?? new Date();
     // End of the anchor's week (Saturday): step forward to day-of-week 6.
     const endCol = new Date(anchor.getTime());
     endCol.setUTCDate(endCol.getUTCDate() + (6 - endCol.getUTCDay()));
+
+    // Right-size the window: frame the actual data span (minDate→maxDate) with
+    // ~1 week of padding instead of a long empty desert. We count whole week
+    // columns from the Saturday of maxDate's week back to the Sunday of
+    // minDate's week, then add one padding column — capped at the `weeks` max.
+    // With no data, fall back to the full `weeks` window ending today.
+    let wk = maxWk;
+    if (minDate && maxDate) {
+      const startWeekSun = new Date(minDate.getTime());
+      startWeekSun.setUTCDate(startWeekSun.getUTCDate() - startWeekSun.getUTCDay());
+      const spanWeeks = Math.round((endCol.getTime() - startWeekSun.getTime()) / (7 * DAY_MS));
+      wk = Math.max(1, Math.min(maxWk, spanWeeks + 1));
+    }
+
     // Start = Sunday of the column (wk-1) weeks before the end column.
     const start = new Date(endCol.getTime() - ((wk - 1) * 7 + 6) * DAY_MS);
 
@@ -234,19 +252,41 @@ function CalendarHeatmapWidget({
       columns.push(col);
     }
     return { columns, monthTicks, wk };
-  }, [maxDate, weeks]);
+  }, [minDate, maxDate, weeks]);
 
   const cell = Math.max(4, cellSize);
   const g = Math.max(0, gap);
   const step = cell + g;
   const topPad = 16; // room for month labels
-  const svgWidth = grid.wk * step - g;
-  const svgHeight = topPad + 7 * step - g;
+  const leftPad = 26; // gutter for weekday row labels (Mon/Wed/Fri)
+  const bottomPad = 18; // room for the Less→More legend
+  const gridW = grid.wk * step - g;
+  const gridH = 7 * step - g;
+  const svgWidth = leftPad + gridW;
+  const svgHeight = topPad + gridH + bottomPad;
 
   // Color resolution: literal hex pair → JS rgb interpolation; otherwise an
   // opacity ramp of highColor over a lowColor base (the browser resolves the var).
   const bothHex = isHex(lowColor) && isHex(highColor);
   const span = maxValue || 1;
+
+  // Weekday row labels: only odd rows (Mon=1, Wed=3, Fri=5) like GitHub, so the
+  // gutter stays sparse and readable.
+  const weekdayLabels: Array<{ row: number; label: string }> = [
+    { row: 1, label: "Mon" },
+    { row: 3, label: "Wed" },
+    { row: 5, label: "Fri" },
+  ];
+
+  // Legend swatches share the cell coloring paths exactly: hex pair → rgb
+  // interpolation; otherwise lowColor base + highColor opacity ramp.
+  const legendStops = [0, 0.25, 0.5, 0.75, 1];
+  const legendSwatch = (t: number) =>
+    bothHex
+      ? interpolateColor(lowColor, highColor, t)
+      : lowColor;
+  const legendCell = Math.max(8, cell);
+  const legendW = legendStops.length * (legendCell + 2) - 2;
 
   let body: React.ReactNode;
 
@@ -273,10 +313,22 @@ function CalendarHeatmapWidget({
             <text
               key={`m-${t.col}`}
               className="ofw-cal-heatmap__month"
-              x={t.col * step}
+              x={leftPad + t.col * step}
               y={10}
             >
               {t.label}
+            </text>
+          ))}
+          {/* weekday row labels (Mon/Wed/Fri) in a faint mono gutter */}
+          {weekdayLabels.map((w) => (
+            <text
+              key={`w-${w.row}`}
+              className="ofw-cal-heatmap__weekday"
+              x={leftPad - 6}
+              y={topPad + w.row * step + cell - 2}
+              textAnchor="end"
+            >
+              {w.label}
             </text>
           ))}
           {/* day cells */}
@@ -284,7 +336,7 @@ function CalendarHeatmapWidget({
             col.map((d, row) => {
               const value = valueMap[d.key] ?? 0;
               const ratio = value / span;
-              const x = c * step;
+              const x = leftPad + c * step;
               const y = topPad + row * step;
               const tooltip = `${d.key}: ${value.toLocaleString()}`;
               if (bothHex) {
@@ -344,13 +396,86 @@ function CalendarHeatmapWidget({
               );
             }),
           )}
+          {/* Less → More legend, bottom-right, sharing the cell color ramp */}
+          {(() => {
+            const legendY = topPad + gridH + bottomPad - legendCell;
+            const moreX = svgWidth;
+            const swatchesRight = moreX - 30; // room for the "More" label
+            const swatchesLeft = swatchesRight - legendW;
+            const lessX = swatchesLeft - 4;
+            const textY = legendY + legendCell - 1;
+            return (
+              <g aria-hidden="true">
+                <text
+                  className="ofw-cal-heatmap__legend"
+                  x={lessX}
+                  y={textY}
+                  textAnchor="end"
+                >
+                  Less
+                </text>
+                {legendStops.map((t, i) => {
+                  const sx = swatchesLeft + i * (legendCell + 2);
+                  const op = 0.12 + 0.88 * t;
+                  if (bothHex) {
+                    return (
+                      <rect
+                        key={`lg-${i}`}
+                        x={sx}
+                        y={legendY}
+                        width={legendCell}
+                        height={legendCell}
+                        rx={2}
+                        fill={legendSwatch(t)}
+                      />
+                    );
+                  }
+                  return (
+                    <g key={`lg-${i}`}>
+                      <rect
+                        x={sx}
+                        y={legendY}
+                        width={legendCell}
+                        height={legendCell}
+                        rx={2}
+                        fill={lowColor}
+                      />
+                      {t > 0 ? (
+                        <rect
+                          x={sx}
+                          y={legendY}
+                          width={legendCell}
+                          height={legendCell}
+                          rx={2}
+                          fill={highColor}
+                          fillOpacity={op}
+                        />
+                      ) : null}
+                    </g>
+                  );
+                })}
+                <text
+                  className="ofw-cal-heatmap__legend"
+                  x={moreX}
+                  y={textY}
+                  textAnchor="end"
+                >
+                  More
+                </text>
+              </g>
+            );
+          })()}
         </svg>
       </div>
     );
   }
 
   return (
-    <Card title={title} className="ofw-card--chart" style={parseStyle(styleProp)}>
+    <Card
+      title={title}
+      className="ofw-card--chart ofw-card--heatmap"
+      style={parseStyle(styleProp)}
+    >
       {body}
     </Card>
   );

@@ -116,8 +116,8 @@ export const kpiProps = z
     size: z
       .number()
       .optional()
-      .default(30)
-      .describe("Font size of the number in pixels. Default 30."),
+      .default(48)
+      .describe("Font size of the number in pixels. Default 48."),
   })
   .extend(UNIVERSAL_PROPS.shape);
 
@@ -165,7 +165,7 @@ function Kpi({ element }: ComponentRenderProps<KpiProps>) {
     goodWhen = "above",
     showSparkline = true,
     trendColor = "var(--ofw-accent)",
-    size = 30,
+    size = 48,
   } = element.props;
   const queryId = (element.props as { _queryId?: string })._queryId;
   const style = (element.props as { style?: string }).style;
@@ -219,7 +219,7 @@ function Kpi({ element }: ComponentRenderProps<KpiProps>) {
         : num <= (target as number)
       : false;
 
-  const fontSizePx = typeof size === "number" && size > 0 ? size : 30;
+  const fontSizePx = typeof size === "number" && size > 0 ? size : 48;
   const displayValue = formatValue(rawValue, format, decimals);
 
   let body: React.ReactNode;
@@ -263,7 +263,7 @@ function Kpi({ element }: ComponentRenderProps<KpiProps>) {
         ) : null}
         {showSparkline && hasSeries ? (
           <div className="ofw-kpi__spark">
-            <Sparkline data={series} color={trendColor} height={36} />
+            <Sparkline data={series} color={trendColor} height={48} />
           </div>
         ) : null}
       </>

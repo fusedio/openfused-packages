@@ -703,9 +703,10 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
 
 
 /* ===========================================================================
- * Batch 2 widgets — sparkline · kpi · gauge · funnel · calendar-heatmap,
- * plus sql-table numeric-column right-align. Appended after the base sheet so
- * the table alignment outranks the @kit `text-left` header utility.
+ * Batch 2 widgets — rebuilt for the design pass. sparkline + sql-table are the
+ * originals; gauge/funnel/kpi/calendar-heatmap are the custom-SVG / proportion
+ * rebuilds. Appended after the base sheet so table alignment beats the @kit
+ * header utility.
  * ========================================================================= */
 
 /* sparkline — standalone tiny trend; the inner <Sparkline> brings its own
@@ -717,12 +718,170 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
   width: 100%;
 }
 
-/* ── kpi tile ─────────────────────────────────────────────────────────── */
+/* sql-table: right-align numeric columns (header + body cells) with tabular
+   numerals. The numeric-column set is detected in sql-table.tsx by sampling
+   rows and threaded into the ui-kit DataTable as the internal `numericColumns`
+   prop (no public widget prop); DataTable stamps `ofw-table__cell--num` onto the
+   matching th/td. Scoped under `.ofw-card--table` so it outranks the
+   single-utility `text-left` Tailwind class on the header cell. */
+.ofw-card--table .ofw-table__cell--num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── gauge ───────────────────────────────────────────────────────────────
+   Custom SVG 240° arc (no recharts) with a value centered in the ring (like
+   donut's center total). The wrapper centers the arc so it never floats in
+   horizontal dead space; the value overlay is absolutely placed over the ring. */
+.ofw-card--gauge .ofw-card__body { width: 100%; }
+.ofw-gauge {
+  width: 100%; height: 100%; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.ofw-gauge__arc {
+  position: relative;
+  width: 100%;
+  max-width: min(340px, 100%);
+  margin: 0 auto;
+}
+.ofw-gauge svg {
+  display: block;
+  width: 100%;
+  max-width: min(340px, 100%);
+  height: auto;
+  margin: 0 auto;
+  overflow: visible; /* let the value-arc glow extend past the viewBox edge */
+}
+.ofw-gauge__track {
+  /* solid track, slightly recessed; color comes from the inline stroke prop */
+}
+.ofw-gauge__value-arc {
+  filter: drop-shadow(0 0 6px var(--ofw-accent-glow));
+}
+.ofw-gauge__center {
+  position: absolute; inset: 0; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; pointer-events: none; text-align: center;
+  /* nudge the overlay up so it sits centered within the open-bottom 240° arc */
+  padding-bottom: 8%;
+}
+.ofw-gauge__value {
+  font-family: var(--ofw-font-display); font-weight: 700; font-size: 30px;
+  color: var(--ofw-text); line-height: 1; letter-spacing: -0.01em;
+}
+.ofw-gauge__value--pct {
+  font-family: var(--ofw-font-mono); font-weight: 600;
+  font-variant-numeric: tabular-nums; letter-spacing: 0;
+}
+.ofw-gauge__label {
+  font-family: var(--ofw-font-body); font-size: 12px; color: var(--ofw-text-dim);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+/* funnel — custom min-width-floored band funnel (no recharts). A flex COLUMN
+   of fixed-height stage rows; each row is a two-column read: a fixed left
+   gutter for the stage label, then a band track holding a centered rounded bar
+   whose width is floored at 18% so the smallest stage is always a legible band.
+   The bar fades in opacity top→bottom (set inline). Value+percent sits on one
+   mono line inside the bar, or spills to the right gutter when the bar is too
+   narrow. Scoped under .ofw-funnel so nothing leaks onto other widgets. */
+.ofw-card--funnel .ofw-card__body { width: 100%; }
+
+.ofw-funnel {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--ofw-font-mono);
+  overflow: hidden;
+}
+
+/* One stage: fixed height for an even rhythm regardless of value drop-off. */
+.ofw-funnel__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  flex: 0 0 auto;
+}
+
+/* Left gutter — stage label, left-aligned, in the dim mono token. */
+.ofw-funnel__label {
+  flex: 0 0 70px;
+  width: 70px;
+  font-family: var(--ofw-font-mono);
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--ofw-text-dim);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Band track — fills the remaining width; the bar is centered within it. */
+.ofw-funnel__track {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* The band itself: rounded, accent background, opacity set inline (fade). */
+.ofw-funnel__bar {
+  height: 100%;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0 10px;
+  transition: opacity 120ms ease;
+}
+
+/* Optional glow on the top (widest, solid) band. */
+.ofw-funnel__bar--top {
+  filter: drop-shadow(0 0 8px var(--ofw-accent-glow));
+}
+
+/* Value + percent — one line, never wraps, dark text on the lime band. */
+.ofw-funnel__value {
+  font-family: var(--ofw-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+.ofw-funnel__value--in {
+  color: var(--ofw-bg);
+}
+/* Fallback when the bar is too narrow: value sits in the right gutter. */
+.ofw-funnel__value--out {
+  flex: 0 0 auto;
+  color: var(--ofw-text-dim);
+  padding-left: 2px;
+}
+
+/* ── kpi tile ─────────────────────────────────────────────────────────────
+   A glance-readable KPI: a big mono/tabular number with a delta chip on top,
+   a tight uppercase label directly beneath, an optional target line, and the
+   sparkline pinned to the BOTTOM as a full-width trend footer (margin-top:auto)
+   so the card's lower band reads as an intentional footer, not dead space.
+   The body is a flex column filling the card height. */
 .ofw-card--kpi .ofw-card__body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
+  height: 100%;
   min-width: 0;
 }
 .ofw-card--kpi .ofw-kpi__top {
@@ -733,7 +892,8 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
   min-width: 0;
 }
 .ofw-card--kpi .ofw-kpi__value {
-  font-family: var(--ofw-font-display);
+  font-family: var(--ofw-font-mono);
+  font-variant-numeric: tabular-nums;
   font-weight: 600;
   line-height: 1.05;
   color: var(--ofw-text);
@@ -767,7 +927,9 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
   color: var(--ofw-text-dim);
   background: color-mix(in srgb, var(--ofw-text-dim) 12%, transparent);
 }
+/* Label sits tight under the number+delta row (value→label gap 2px). */
 .ofw-card--kpi .ofw-kpi__label {
+  margin-top: 2px;
   font-family: var(--ofw-font-body);
   font-size: 12px;
   color: var(--ofw-text-dim);
@@ -778,6 +940,7 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  margin-top: 6px;
   font-family: var(--ofw-font-mono);
   font-size: 11px;
   color: var(--ofw-text-dim);
@@ -792,46 +955,25 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
 .ofw-card--kpi .ofw-kpi__target--bad .ofw-kpi__target-mark {
   color: var(--ofw-danger);
 }
+/* Trend footer: pushed to the bottom edge, spanning the full card width so the
+   lower band is an intentional footer strip rather than empty space. */
 .ofw-card--kpi .ofw-kpi__spark {
-  margin-top: 4px;
+  margin-top: auto;
+  width: 100%;
+  padding-top: 8px;
 }
-
-/* ── gauge ───────────────────────────────────────────────────────────────
-   Radial arc with a value centered in the ring (like donut's center total).
-   The arc fills the .ofw-card--chart body; the overlay is absolutely placed. */
-.ofw-card--gauge .ofw-card__body { width: 100%; }
-.ofw-gauge__center {
-  position: absolute; inset: 0; z-index: 1;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; pointer-events: none; text-align: center;
-}
-.ofw-gauge__value {
-  font-family: var(--ofw-font-display); font-weight: 700; font-size: 28px;
-  color: var(--ofw-text); line-height: 1; font-variant-numeric: tabular-nums;
-}
-.ofw-gauge__label {
-  font-family: var(--ofw-font-body); font-size: 12px; color: var(--ofw-text-dim);
-  text-transform: uppercase; letter-spacing: 0.04em;
-}
-
-/* funnel — conversion funnel chart. Card chrome + .ofw-chart base already cover
-   sizing/typography; this only labels the chart variant and keeps the recharts
-   funnel label/trapezoid text in the mono chart font. */
-.ofw-chart--funnel { width: 100%; }
-.ofw-chart--funnel .recharts-funnel-labelList text,
-.ofw-chart--funnel .recharts-label-list text {
-  font-family: var(--ofw-font-mono);
+.ofw-card--kpi .ofw-kpi__spark .ofw-sparkline {
+  width: 100%;
 }
 
 /* calendar-heatmap — GitHub-style activity grid (pure SVG). Scoped under
  * .ofw-cal-heatmap__scroll so it never leaks onto other widgets. */
 .ofw-cal-heatmap__scroll {
   width: 100%;
-  height: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
 }
 .ofw-cal-heatmap__svg {
   display: block;
@@ -842,17 +984,24 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
   font-family: var(--ofw-font-body);
   font-size: 10px;
 }
+/* Weekday gutter (Mon/Wed/Fri) — faint mono, AA-contrast on the card bg. */
+.ofw-cal-heatmap__weekday {
+  fill: var(--ofw-text-faint);
+  font-family: var(--ofw-font-mono);
+  font-size: 9px;
+}
+/* Less → More legend labels — faint mono ~10px. */
+.ofw-cal-heatmap__legend {
+  fill: var(--ofw-text-faint);
+  font-family: var(--ofw-font-mono);
+  font-size: 10px;
+}
 .ofw-cal-heatmap__svg rect {
   shape-rendering: geometricPrecision;
 }
-
-/* sql-table: right-align numeric columns (header + body cells) with tabular
-   numerals. The numeric-column set is detected in sql-table.tsx by sampling
-   rows and threaded into the ui-kit DataTable as the internal `numericColumns`
-   prop (no public widget prop); DataTable stamps `ofw-table__cell--num` onto the
-   matching th/td. Scoped under `.ofw-card--table` so it outranks the
-   single-utility `text-left` Tailwind class on the header cell. */
-.ofw-card--table .ofw-table__cell--num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+/* Shrink-wrap: opt out of the .ofw-card--chart 300px chart contract so the grid
+ * sizes to its own SVG height instead of floating in a tall box. */
+.ofw-card--heatmap .ofw-card__body {
+  height: auto;
+  min-height: 0;
 }

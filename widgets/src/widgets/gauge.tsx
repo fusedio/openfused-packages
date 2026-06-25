@@ -1,10 +1,10 @@
-// widgets/gauge.tsx — radial progress gauge (recharts RadialBarChart) bound to a
-// DuckDB query (or a static value).
+// widgets/gauge.tsx — radial progress gauge rendered as a CUSTOM SVG arc (NO
+// recharts) bound to a DuckDB query (or a static value).
 //
 // An OpenFused-owned widget (no application-parity constraint — prop names are
 // chosen freely, kept lowercase and consistent with the metric/donut siblings).
-// Authored ONLY against `@fusedio/widget-sdk` + recharts + the local helpers:
-// reads `element.props`, declares real-zod props `.extend(UNIVERSAL_PROPS.shape)`,
+// Authored ONLY against `@fusedio/widget-sdk` + the local helpers: reads
+// `element.props`, declares real-zod props `.extend(UNIVERSAL_PROPS.shape)`,
 // resolves its value through `useDuckDbSqlQuery({ sql, queryId })`, styles via
 // `parseStyle(element.props.style)`, and default-exports `defineComponent({...})`
 // PLUS `writesParam: false` (a gauge never writes a param).
@@ -14,15 +14,17 @@
 // applies the compact/comma/none formatting. The gauge then maps the number onto a
 // [min, max] fraction and renders it as a 240° sweep.
 //
-// A single RadialBar can only fill a FRACTION of the arc by scaling against a
-// numeric PolarAngleAxis whose domain is fixed [0, 100]; the bar's value is the
-// percentage (0–100). The center value is an absolutely-positioned overlay
-// (mirroring donut-chart's center total) so it does not steal height from the
-// ResponsiveContainer and break the arc.
+// The arc itself is hand-rolled SVG (two stroked <path>s sharing geometry): a
+// background track + an accent value arc. The value arc's drawn length is the
+// fraction of the 240° sweep, expressed via stroke-dasharray/stroke-dashoffset
+// against the path's measured length. We FLOOR the drawn fraction at 0.035 for any
+// non-zero value so a tiny value still shows a clear rounded sliver hugging the
+// start of the track (round linecaps would otherwise collapse it into a detached
+// dot or hide it entirely). The center value is an absolutely-positioned overlay
+// (mirroring donut-chart's center total) so it does not steal arc geometry.
 
 import React from "react";
 import { z } from "zod";
-import { ResponsiveContainer, RadialBarChart, RadialBar, PolarAngleAxis } from "recharts";
 import {
   useDuckDbSqlQuery,
   parseStyle,
@@ -103,6 +105,37 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.min(Math.max(n, lo), hi);
 }
 
+// Arc geometry — a 240° sweep starting at 210° and ending at -30° (recharts'
+// gauge convention), traced CLOCKWISE in SVG user space. SVG y grows downward,
+// so a math angle θ maps to (cx + r·cosθ, cy − r·sinθ).
+const VIEW = 120; // viewBox is VIEW×VIEW
+const CX = VIEW / 2;
+const CY = VIEW / 2;
+const R = 48; // arc radius inside the box (leaves room for the rounded cap)
+const STROKE = Math.round(R * 0.14 * 100) / 100; // ~14% of radius
+const START_ANGLE = 210; // degrees (math convention)
+const END_ANGLE = -30;
+const SWEEP = START_ANGLE - END_ANGLE; // 240° total sweep, traced clockwise
+// Arc length of the full 240° sweep (used to scale the value dash).
+const ARC_LENGTH = (Math.PI * R * SWEEP) / 180;
+// Minimum drawn fraction so a small (but non-zero) value reads as a rounded
+// sliver hugging the start, never a detached cap or invisible nub.
+const MIN_FRACTION = 0.035;
+
+function polar(angleDeg: number): { x: number; y: number } {
+  const a = (angleDeg * Math.PI) / 180;
+  return { x: CX + R * Math.cos(a), y: CY - R * Math.sin(a) };
+}
+
+// Path for the full background sweep. The large-arc-flag is 1 because 240° > 180°;
+// the sweep-flag is 1 (clockwise in SVG, which is decreasing math angle).
+function fullArcPath(): string {
+  const s = polar(START_ANGLE);
+  const e = polar(END_ANGLE);
+  const largeArc = SWEEP > 180 ? 1 : 0;
+  return `M ${s.x} ${s.y} A ${R} ${R} 0 ${largeArc} 1 ${e.x} ${e.y}`;
+}
+
 // -------------------------------------------------------------------- component
 function Gauge({ element }: ComponentRenderProps<GaugeProps>) {
   // Mirror the zod `.default()`s as JS fallbacks (render-time zod is stubbed).
@@ -137,6 +170,16 @@ function Gauge({ element }: ComponentRenderProps<GaugeProps>) {
   const pct = span > 0 && !Number.isNaN(num) ? clamp((num - min) / span, 0, 1) : 0;
   const displayValue = formatValue(rawValue, format, decimals);
 
+  // The drawn fraction floors at MIN_FRACTION for any non-zero value so a tiny
+  // value (e.g. 5%) is a clear rounded sliver, but a true zero stays empty.
+  const drawnFraction = pct <= 0 ? 0 : Math.max(pct, MIN_FRACTION);
+  const dashOffset = ARC_LENGTH * (1 - drawnFraction);
+  const arcD = fullArcPath();
+
+  // A `%`-suffixed value reads as a percentage → render it in the tabular mono
+  // font so digits don't jitter and the unit lines up.
+  const isPercent = suffix.trim() === "%";
+
   // Show the skeleton ONLY before any value has resolved — once a static value or
   // server-resolved rows give us a number, render it even while a background
   // re-resolve keeps `loading` true (mirrors metric's "never blank resolved data").
@@ -149,40 +192,54 @@ function Gauge({ element }: ComponentRenderProps<GaugeProps>) {
   } else if (error) {
     body = <ErrorState message={error} />;
   } else {
+    const ariaLabel = `${displayValue}${suffix}${label ? ` ${label}` : ""}`;
     body = (
-      <div
-        className="ofw-gauge"
-        style={{ position: "relative", width: "100%", height: "100%", minHeight: 0 }}
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <RadialBarChart
-            data={[{ v: pct * 100 }]}
-            startAngle={210}
-            endAngle={-30}
-            innerRadius="70%"
-            outerRadius="100%"
+      <div className="ofw-gauge">
+        <div className="ofw-gauge__arc">
+          <svg
+            viewBox={`0 0 ${VIEW} ${VIEW}`}
+            role="img"
+            aria-label={`Gauge: ${ariaLabel}`}
+            preserveAspectRatio="xMidYMid meet"
           >
-            {/* A numeric angle axis fixed to [0, 100] scales the single bar to a
-                fraction of the 240° sweep; ticks hidden so only the arc shows. */}
-            <PolarAngleAxis type="number" domain={[0, 100]} tick={false} axisLine={false} />
-            <RadialBar
-              dataKey="v"
-              fill={color}
-              background={{ fill: trackColor }}
-              cornerRadius={999}
-              isAnimationActive={false}
+            {/* Background track — full 240° sweep. */}
+            <path
+              className="ofw-gauge__track"
+              d={arcD}
+              fill="none"
+              stroke={trackColor}
+              strokeWidth={STROKE}
+              strokeLinecap="round"
             />
-          </RadialBarChart>
-        </ResponsiveContainer>
+            {/* Value arc — same geometry, drawn for `drawnFraction` of the sweep
+                via dasharray/dashoffset. Hidden entirely when the value is 0. */}
+            {drawnFraction > 0 ? (
+              <path
+                className="ofw-gauge__value-arc"
+                d={arcD}
+                fill="none"
+                stroke={color}
+                strokeWidth={STROKE}
+                strokeLinecap="round"
+                strokeDasharray={ARC_LENGTH}
+                strokeDashoffset={dashOffset}
+              />
+            ) : null}
+          </svg>
 
-        {/* Center overlay — absolutely positioned over the ring (like donut's
-            center total) so it never steals height from the ResponsiveContainer. */}
-        <div className="ofw-gauge__center" aria-hidden="true">
-          <div className="ofw-gauge__value">
-            {displayValue}
-            {suffix}
+          {/* Center overlay — absolutely positioned over the ring (like donut's
+              center total) so it never steals geometry from the SVG. */}
+          <div className="ofw-gauge__center" aria-hidden="true">
+            <div
+              className={
+                isPercent ? "ofw-gauge__value ofw-gauge__value--pct" : "ofw-gauge__value"
+              }
+            >
+              {displayValue}
+              {suffix}
+            </div>
+            {label ? <div className="ofw-gauge__label">{label}</div> : null}
           </div>
-          {label ? <div className="ofw-gauge__label">{label}</div> : null}
         </div>
       </div>
     );
@@ -200,7 +257,7 @@ const definition: ComponentDef = {
     component: Gauge,
     props: gaugeProps,
     description:
-      "Radial progress gauge — maps a value (static or the first cell of a DuckDB SQL query) onto a [min, max] range and renders it as a 240° arc with the formatted value in the center.",
+      "Radial progress gauge — maps a value (static or the first cell of a DuckDB SQL query) onto a [min, max] range and renders it as a custom 240° SVG arc with the formatted value in the center.",
     hasChildren: false,
   }),
   writesParam: false,

@@ -1,10 +1,10 @@
-// widgets/funnel.tsx — conversion funnel (recharts) bound to a DuckDB query.
+// widgets/funnel.tsx — conversion funnel bound to a DuckDB query.
 //
 // An OpenFused-owned chart widget (no app-parity constraint): prop names are
 // chosen freely but kept lowercase and consistent with the sibling charts
-// (bar-chart / donut-chart). Authored ONLY against `@fusedio/widget-sdk` +
-// recharts + the local helpers: it reads `element.props`, declares its props
-// with real-zod `z.object({...}).extend(UNIVERSAL_PROPS.shape)`, binds rows via
+// (bar-chart / donut-chart). Authored ONLY against `@fusedio/widget-sdk` + the
+// local helpers: it reads `element.props`, declares its props with real-zod
+// `z.object({...}).extend(UNIVERSAL_PROPS.shape)`, binds rows via
 // `useDuckDbSqlQuery({ sql, queryId })`, styles via `parseStyle(...)`, and
 // default-exports `defineComponent({...})` PLUS `writesParam: false` (a chart
 // never writes a param).
@@ -14,22 +14,16 @@
 // already in descending order. We sort descending defensively so the funnel
 // narrows top→bottom regardless of query order.
 //
-// Per-datum `fill`: recharts `Funnel` colors each trapezoid by the datum's
-// `fill`. We derive a fade from the single accent `color` by mapping each stage
-// to a decreasing fill-opacity stop, so the funnel reads as one hue stepping
-// down in intensity (top stage solid, deepest stage faintest). `color` defaults
-// to "var(--ofw-accent)" — recharts passes the literal through to the SVG
-// `fill`, which resolves the CSS var.
+// Render model: a custom CSS flex COLUMN of stage rows (NO recharts). Each row
+// is a two-column read — a fixed left gutter holds the stage label, then a band
+// track holds a centered rounded bar whose WIDTH is min-width-floored at 18% so
+// the smallest stage is always a legible band, never a thread. The bar fades in
+// opacity from the top stage (solid) to the deepest (0.35). The value+percent
+// sits on one line inside the bar; when the bar is too narrow to hold it the
+// text falls back to the right gutter. Each band carries a native `title` with
+// the exact value for hover.
 
 import React from "react";
-import { z } from "zod";
-import {
-  ResponsiveContainer,
-  FunnelChart,
-  Funnel,
-  LabelList,
-  Tooltip,
-} from "recharts";
 import {
   useDuckDbSqlQuery,
   parseStyle,
@@ -39,7 +33,7 @@ import {
 
 import { UNIVERSAL_PROPS } from "./_universal";
 import type { ComponentDef } from "./types";
-import { ChartTooltip } from "./_chart-tooltip";
+import { z } from "zod";
 import { Card, SkeletonState, ErrorState, EmptyState } from "../components/card";
 
 // ----------------------------------------------------------------- props schema
@@ -60,7 +54,7 @@ export const funnelProps = z
       .optional()
       .default("var(--ofw-accent)")
       .describe(
-        "Base fill color for the funnel. Each stage is rendered as a decreasing opacity of this color (top stage solid, deepest stage faintest). Default is the lime accent.",
+        "Base fill color for the funnel bands. Each stage steps down in opacity of this color (top stage solid, deepest stage faintest). Default is the lime accent.",
       ),
     showValues: z
       .boolean()
@@ -70,7 +64,7 @@ export const funnelProps = z
     showPercent: z
       .boolean()
       .optional()
-      .default(false)
+      .default(true)
       .describe(
         "Show each stage as a percentage of the first (top) stage, e.g. '42%'.",
       ),
@@ -90,15 +84,27 @@ function compactValue(v: number): string {
   return String(v);
 }
 
-// A funnel stage, plus the derived per-datum `fill` recharts colors by, and the
-// formatted right-side value/percent label text.
+/** Exact value for the native hover title (grouped thousands, no rounding). */
+function exactValue(v: number): string {
+  return Number.isFinite(v) ? v.toLocaleString("en-US") : String(v);
+}
+
+// Min-width floor: the smallest stage is guaranteed a readable band of this
+// fraction of the track, never a thread.
+const WIDTH_FLOOR = 0.18;
+// Below this many px a band can't hold the centered value legibly, so the
+// value/percent text moves to the right gutter instead.
+const INLINE_MIN_PX = 64;
+
+// A funnel stage, plus the derived fade opacity, band width fraction, and the
+// formatted value/percent text.
 interface FunnelStage {
   label: string;
   value: number;
-  fill: string;
-  // The value/percent text rendered to the right of the trapezoid (empty when
-  // both showValues and showPercent are off).
+  opacity: number;
+  widthPct: number;
   valueLabel: string;
+  titleText: string;
 }
 
 // -------------------------------------------------------------------- component
@@ -110,7 +116,7 @@ function FunnelWidget({ element }: ComponentRenderProps<FunnelProps>) {
     title,
     color = "var(--ofw-accent)",
     showValues = true,
-    showPercent = false,
+    showPercent = true,
   } = element.props;
   // `style` is the universal prop (lives in ./_universal.ts); read it off
   // element.props without redeclaring it. `queryId` is the resolver-stamped
@@ -123,6 +129,22 @@ function FunnelWidget({ element }: ComponentRenderProps<FunnelProps>) {
     queryId,
     enabled: !!sql,
   });
+
+  // Measure the band-track width so we can decide, per row, whether the bar is
+  // wide enough to carry its value inline or must spill into the right gutter.
+  const trackRef = React.useRef<HTMLDivElement | null>(null);
+  const [trackPx, setTrackPx] = React.useState(0);
+  React.useEffect(() => {
+    const el = trackRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0;
+      setTrackPx(w);
+    });
+    ro.observe(el);
+    setTrackPx(el.clientWidth);
+    return () => ro.disconnect();
+  }, [rows.length]);
 
   let body: React.ReactNode;
 
@@ -148,77 +170,84 @@ function FunnelWidget({ element }: ComponentRenderProps<FunnelProps>) {
     const top = stages.length > 0 ? stages[0].value : 0;
     const last = stages.length - 1;
 
-    // Derive a fade: each stage steps down in fill-opacity from 1 (top) to a
-    // floor of 0.35 (deepest), so the funnel reads as one hue darkening top to
-    // bottom. recharts honors `fillOpacity` per datum via the `fill` shape, but
-    // since `color` may be a CSS var (which recharts passes through to SVG), we
-    // bake the opacity into the alpha-less color by pairing each datum's `fill`
-    // with a separate `fillOpacity` on the Funnel — instead we set per-datum
-    // fill to the same color and let LabelList carry the contrast. To keep the
-    // step visible we store the computed opacity and apply it via the shape.
-    const chartData: FunnelStage[] = stages.map((s, i) => {
+    // Per stage: a fade stepping down in opacity from 1 (top) to a floor of
+    // 0.35 (deepest) so the funnel reads as one hue darkening top→bottom; a
+    // min-width-floored band width = (0.18 + 0.82 * value/top); and the
+    // value/percent text on one line.
+    const data: FunnelStage[] = stages.map((s, i) => {
       const t = last > 0 ? i / last : 0; // 0 at top → 1 at bottom
       const opacity = 1 - t * 0.65; // 1 → 0.35
+      const frac = top > 0 ? s.value / top : 0;
+      const widthPct = (WIDTH_FLOOR + 0.82 * frac) * 100;
       const pct = top > 0 ? Math.round((s.value / top) * 100) : 0;
       const parts: string[] = [];
       if (showValues) parts.push(compactValue(s.value));
       if (showPercent) parts.push(`${pct}%`);
+      const valueLabel = parts.join("  ·  ");
       return {
         label: s.label,
         value: s.value,
-        fill: color,
-        valueLabel: parts.join("  ·  "),
-        // recharts reads `fillOpacity` off the datum for the trapezoid shape.
-        fillOpacity: opacity,
-      } as FunnelStage & { fillOpacity: number };
+        opacity,
+        widthPct,
+        valueLabel,
+        titleText: `${s.label}: ${exactValue(s.value)} (${pct}%)`,
+      };
     });
 
-    const showStageLabel = showValues || showPercent;
-
     body = (
-      <div className="ofw-chart ofw-chart--funnel">
-        <ResponsiveContainer width="100%" height="100%">
-          <FunnelChart margin={{ top: 8, right: 96, bottom: 8, left: 8 }}>
-            <Tooltip
-              cursor={false}
-              content={<ChartTooltip />}
-              animationDuration={0}
-            />
-            <Funnel
-              dataKey="value"
-              nameKey="label"
-              data={chartData}
-              isAnimationActive={false}
-              stroke="var(--ofw-bg)"
-              strokeWidth={2}
-            >
-              {/* Stage name, drawn to the right of each trapezoid. */}
-              <LabelList
-                position="right"
-                dataKey="label"
-                fill="var(--ofw-text)"
-                stroke="none"
-                style={{ fontSize: 12 }}
-              />
-              {/* Value / percent, drawn centered inside each trapezoid. */}
-              {showStageLabel ? (
-                <LabelList
-                  position="center"
-                  dataKey="valueLabel"
-                  fill="var(--ofw-bg)"
-                  stroke="none"
-                  style={{ fontSize: 11, fontWeight: 600 }}
-                />
-              ) : null}
-            </Funnel>
-          </FunnelChart>
-        </ResponsiveContainer>
+      <div
+        className="ofw-funnel"
+        role="img"
+        aria-label={`Funnel chart with ${data.length} stages${
+          title ? `: ${title}` : ""
+        }`}
+      >
+        {data.map((stage, i) => {
+          // Decide inline vs. gutter placement from the measured band-track px.
+          // Until the track is measured (first paint / no ResizeObserver) we
+          // optimistically render inline; the effect re-renders with the real
+          // width on the next frame.
+          const barPx = trackPx > 0 ? (trackPx * stage.widthPct) / 100 : Infinity;
+          const inline = !stage.valueLabel || barPx >= INLINE_MIN_PX;
+          const isTop = i === 0;
+          return (
+            <div className="ofw-funnel__row" key={`${stage.label}-${i}`}>
+              <span className="ofw-funnel__label" title={stage.label}>
+                {stage.label}
+              </span>
+              <div className="ofw-funnel__track" ref={i === 0 ? trackRef : null}>
+                <div
+                  className={`ofw-funnel__bar${
+                    isTop ? " ofw-funnel__bar--top" : ""
+                  }`}
+                  style={{
+                    width: `${stage.widthPct}%`,
+                    background: color,
+                    opacity: stage.opacity,
+                  }}
+                  title={stage.titleText}
+                >
+                  {inline && stage.valueLabel ? (
+                    <span className="ofw-funnel__value ofw-funnel__value--in">
+                      {stage.valueLabel}
+                    </span>
+                  ) : null}
+                </div>
+                {!inline && stage.valueLabel ? (
+                  <span className="ofw-funnel__value ofw-funnel__value--out">
+                    {stage.valueLabel}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   }
 
   return (
-    <Card title={title} className="ofw-card--chart" style={parseStyle(style)}>
+    <Card title={title} className="ofw-card--chart ofw-card--funnel" style={parseStyle(style)}>
       {body}
     </Card>
   );
@@ -229,7 +258,7 @@ const definition: ComponentDef = {
     component: FunnelWidget,
     props: funnelProps,
     description:
-      "Conversion funnel powered by a DuckDB SQL query; the query must return 'label' and 'value' columns in descending order. Each stage fades to a lower opacity of `color`. Toggle per-stage value and percent-of-top labels via showValues / showPercent.",
+      "Conversion funnel powered by a DuckDB SQL query; the query must return 'label' and 'value' columns in descending order. Each stage is a min-width-floored band that fades to a lower opacity of `color`. Toggle per-stage value and percent-of-top labels via showValues / showPercent.",
     hasChildren: false,
   }),
   writesParam: false,
