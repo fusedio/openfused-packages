@@ -17,7 +17,9 @@ export const issueStatusIcon: Record<string, string> = {
   completed: "text-green-600 border-green-600 dark:text-green-400 dark:border-green-400",
   failed: "text-red-600 border-red-600 dark:text-red-400 dark:border-red-400",
   cancelled: "text-neutral-500 border-neutral-500",
-  blocked: "text-red-600 border-red-600 dark:text-red-400 dark:border-red-400",
+  // blocked = waiting on the user (answer/approval/dependency), not an error — orange,
+  // not red (red = failed) and not yellow (yellow = in_progress).
+  blocked: "text-orange-600 border-orange-600 dark:text-orange-400 dark:border-orange-400",
 };
 
 export const issueStatusIconDefault = "text-muted-foreground border-muted-foreground";
@@ -30,7 +32,7 @@ export const issueStatusText: Record<string, string> = {
   completed: "text-green-600 dark:text-green-400",
   failed: "text-red-600 dark:text-red-400",
   cancelled: "text-neutral-500",
-  blocked: "text-red-600 dark:text-red-400",
+  blocked: "text-orange-600 dark:text-orange-400",
 };
 
 export const issueStatusTextDefault = "text-muted-foreground";
@@ -74,7 +76,7 @@ export const statusBadge: Record<string, string> = {
   // (pending/in_progress/blocked/completed/failed defined above under run/agent reuse)
   todo: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300",
   in_progress: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300",
-  blocked: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
+  blocked: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300",
   cancelled: "bg-muted text-muted-foreground",
 };
 
