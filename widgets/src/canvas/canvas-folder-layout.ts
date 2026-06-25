@@ -84,7 +84,7 @@ export function layoutWithFolders(
   // stacking. Default "dtv" (and any absent value) takes the band path below,
   // byte-identical to today.
   if (layoutMode === "dag") {
-    return layoutWithFoldersDag(nodes, edges, folders, getSize);
+    return layoutWithFoldersDag(nodes, edges, folders, getSize, bandAxis);
   }
 
   // Fast path: no folders → existing behaviour, no boxes.
@@ -319,14 +319,22 @@ export function layoutWithFolders(
  * drive ranking), then derives each folder's box as the bounding box of its
  * members' placed positions + padding. Ungrouped nodes keep their dagLayout
  * coordinates. Authored folder geometry wins; a collapsed folder is a summary
- * bar anchored at its members' bounds. There is NO per-folder band stacking —
- * positions come straight from the global DAG.
+ * bar anchored at its members' bounds.
+ *
+ * The global DAG packs nodes by rank, not by folder, so sibling folder boxes
+ * (each just the bounding box of its members + padding) can INTERSECT — worst in
+ * detailed mode where nodes are large. A final pass separates the derived folder
+ * bands along the band axis, mirroring the DTV path's `FOLDER_BAND_GAP`: order the
+ * folders along that axis and translate each whole folder (members + box) so its
+ * box starts at least one gap after the previous folder's box. Authored folders
+ * are user-pinned (excluded); ungrouped nodes keep their DAG coords.
  */
 function layoutWithFoldersDag(
   nodes: CanvasNode[],
   edges: Edge[],
   folders: ParsedFolder[],
   getSize: (n: CanvasNode) => Size,
+  bandAxis: BandAxis,
 ): { nodes: CanvasNode[]; folderBoxes: FolderBox[] } {
   // One global DAG over all nodes. Position-less nodes get DAG coords; authored
   // nodes keep theirs (dagLayout already honours an authored `position`).
@@ -339,11 +347,17 @@ function layoutWithFoldersDag(
 
   const placedById = new Map(laidAll.map((n) => [n.id, n]));
   const folderBoxes: FolderBox[] = [];
+  // For the separation pass: each folder's members (to translate with its box) and
+  // the user-pinned folders (excluded from separation — their geometry is authored).
+  const folderMembers = new Map<string, CanvasNode[]>();
+  const authoredFolderIds = new Set<string>();
 
   for (const folder of folders) {
     const members = folder.nodeIds
       .map((id) => placedById.get(id))
       .filter((n): n is CanvasNode => !!n);
+    folderMembers.set(folder.id, members);
+    if (folder.position || folder.size) authoredFolderIds.add(folder.id);
     const b = members.length > 0 ? boundsOf(members, getSize) : undefined;
 
     // Authored geometry wins (position and/or size), exactly like the dtv path.
@@ -427,5 +441,54 @@ function layoutWithFoldersDag(
     });
   }
 
-  return { nodes: laidAll, folderBoxes };
+  // Separation pass: spread the derived folder bands along the band axis so their
+  // boxes never overlap. Walk them in band-axis order, keeping a running cursor at
+  // the end of the last placed box + FOLDER_BAND_GAP; a folder whose box would start
+  // before the cursor is translated forward by the shortfall (its members move with
+  // it). Authored folders stay put. Vertical bands separate on Y, horizontal on X.
+  const horizontal = bandAxis === "horizontal";
+  const start = (fb: FolderBox) => (horizontal ? fb.x : fb.y);
+  const extent = (fb: FolderBox) => (horizontal ? fb.width : fb.height);
+  // Order the bands by CONFIG order (the `folders` array), NOT by their placed dagre
+  // coordinate. dagre packs by rank + node size, so sibling folders can flip order
+  // between node-size modes (e.g. compact ↔ detailed) when sorted by coordinate; the
+  // config order is the authored, mode-independent left→right intent.
+  const configIndex = new Map(folders.map((f, i) => [f.id, i]));
+  const movable = folderBoxes
+    .filter((fb) => !authoredFolderIds.has(fb.id))
+    .sort((a, b) => (configIndex.get(a.id) ?? 0) - (configIndex.get(b.id) ?? 0));
+
+  const shifts = new Map<string, number>(); // folderId → delta along the band axis
+  let cursor: number | null = null;
+  for (const fb of movable) {
+    const delta: number = cursor !== null && start(fb) < cursor ? cursor - start(fb) : 0;
+    if (delta > 0) shifts.set(fb.id, delta);
+    cursor = start(fb) + delta + extent(fb) + FOLDER_BAND_GAP;
+  }
+
+  if (shifts.size === 0) return { nodes: laidAll, folderBoxes };
+
+  // Apply the shifts to the boxes and to each shifted folder's member nodes.
+  for (const fb of folderBoxes) {
+    const delta = shifts.get(fb.id);
+    if (!delta) continue;
+    if (horizontal) fb.x += delta;
+    else fb.y += delta;
+  }
+  const nodeDelta = new Map<string, number>();
+  for (const [folderId, delta] of shifts) {
+    for (const m of folderMembers.get(folderId) ?? []) nodeDelta.set(m.id, delta);
+  }
+  const outNodes = laidAll.map((n) => {
+    const delta = nodeDelta.get(n.id);
+    if (!delta) return n;
+    return {
+      ...n,
+      position: {
+        x: n.position!.x + (horizontal ? delta : 0),
+        y: n.position!.y + (horizontal ? 0 : delta),
+      },
+    };
+  });
+  return { nodes: outNodes, folderBoxes };
 }

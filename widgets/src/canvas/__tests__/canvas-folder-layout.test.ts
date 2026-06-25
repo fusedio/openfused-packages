@@ -445,6 +445,63 @@ describe("layoutWithFolders (dag mode)", () => {
     expect(box.height).toBeLessThan(100); // summary bar, not stacked height
   });
 
+  it("separates derived folder bands the global DAG would overlap (the overlap fix)", () => {
+    // A reference used both early and late puts folder A at ranks 0 AND 2, so its
+    // bounding box spans folder B (rank 1) — the pre-fix overlap, worst with the
+    // large nodes of detailed mode. The separation pass must pull the boxes apart
+    // by at least the band gap along the band axis.
+    const big = () => ({ width: 480, height: 600 });
+    const nodes = [node("a0"), node("b1"), node("a2")];
+    const edges = [
+      { source: "a0", target: "b1" },
+      { source: "b1", target: "a2" },
+    ];
+    const { folderBoxes } = layoutWithFolders(
+      nodes,
+      edges,
+      [folder("A", ["a0", "a2"]), folder("B", ["b1"])],
+      new Map([
+        ["a0", "A"],
+        ["a2", "A"],
+        ["b1", "B"],
+      ]),
+      big,
+      "horizontal",
+      "dag",
+    );
+    const boxA = folderBoxes.find((f) => f.id === "A")!;
+    const boxB = folderBoxes.find((f) => f.id === "B")!;
+    // Whichever box is left, the other starts at least one band gap past its right
+    // edge — i.e. the boxes no longer intersect along the band axis.
+    const [left, right] = boxA.x <= boxB.x ? [boxA, boxB] : [boxB, boxA];
+    expect(right.x).toBeGreaterThanOrEqual(left.x + left.width + FOLDER_BAND_GAP);
+  });
+
+  it("orders bands by CONFIG order, not dagre coordinate (mode-independent — the swap fix)", () => {
+    // The edge nodeB → nodeA makes dagre rank nodeB LEFT of nodeA (B.x < A.x). The
+    // config order is [A, B], so the bands must still come out A-left-of-B. Sorting
+    // by the placed coordinate (the old behaviour) would follow dagre and flip them —
+    // which is exactly how compact ↔ detailed swapped References and Data sources.
+    const nodes = [node("nodeA"), node("nodeB")];
+    const edges = [{ source: "nodeB", target: "nodeA" }];
+    const { folderBoxes } = layoutWithFolders(
+      nodes,
+      edges,
+      [folder("A", ["nodeA"]), folder("B", ["nodeB"])],
+      new Map([
+        ["nodeA", "A"],
+        ["nodeB", "B"],
+      ]),
+      fixedSize,
+      "horizontal",
+      "dag",
+    );
+    const boxA = folderBoxes.find((f) => f.id === "A")!;
+    const boxB = folderBoxes.find((f) => f.id === "B")!;
+    // Config order [A, B] wins over dagre's B→A ranking → A stays left of B.
+    expect(boxA.x).toBeLessThan(boxB.x);
+  });
+
   // Safety property: omitting the layout mode is byte-identical to "dtv" — the
   // dag path is purely opt-in and never perturbs the default.
   it("is byte-identical between an omitted layout mode and explicit dtv", () => {
