@@ -444,7 +444,7 @@ function StackedAreaChartWidget({
               <Brush
                 dataKey="label"
                 height={brushHeight}
-                stroke="#666"
+                stroke="#93a0b2"
                 fill="#1a1a1a"
                 travellerWidth={10}
                 tickFormatter={() => ""}

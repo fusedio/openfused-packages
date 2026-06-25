@@ -286,8 +286,8 @@ function VideoReview({ element }: ComponentRenderProps<VideoReviewProps>) {
     if (!waveColorsRef.current) {
       const cs = getComputedStyle(cv);
       waveColorsRef.current = {
-        played: cs.getPropertyValue("--ofw-accent").trim() || "#f5a623",
-        base: cs.getPropertyValue("--ofw-text-faint").trim() || "#5a6678",
+        played: cs.getPropertyValue("--ofw-accent").trim() || "#E8FF59",
+        base: cs.getPropertyValue("--ofw-text-faint").trim() || "#828ea2",
       };
     }
     const { played, base } = waveColorsRef.current;

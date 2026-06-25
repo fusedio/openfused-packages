@@ -20,13 +20,13 @@
 
   --ofw-text:       #e7ecf3;
   --ofw-text-dim:   #93a0b2;
-  --ofw-text-faint: #5a6678;
+  --ofw-text-faint: #828ea2;   /* lifted to ≥4.5:1 on the card bg (WCAG AA) */
 
-  --ofw-accent:     #f5a623;   /* signature amber */
-  --ofw-accent-2:   #ffc861;
-  --ofw-accent-soft: rgba(245, 166, 35, 0.13);
-  --ofw-accent-line: rgba(245, 166, 35, 0.34);
-  --ofw-accent-glow: rgba(245, 166, 35, 0.40);
+  --ofw-accent:     #E8FF59;   /* signature lime */
+  --ofw-accent-2:   #f1ff8c;
+  --ofw-accent-soft: rgba(232, 255, 89, 0.13);
+  --ofw-accent-line: rgba(232, 255, 89, 0.34);
+  --ofw-accent-glow: rgba(232, 255, 89, 0.40);
 
   --ofw-danger:      #ff6470;
   --ofw-danger-soft: rgba(255, 100, 112, 0.13);
@@ -34,14 +34,15 @@
   --ofw-line:    rgba(130, 160, 200, 0.11);
   --ofw-line-2:  rgba(130, 160, 200, 0.20);
 
-  /* chart series palette — amber-led, then a cool spread */
-  --ofw-series-1: #f5a623;
-  --ofw-series-2: #5ec8d8;
-  --ofw-series-3: #8a7cff;
+  /* chart series palette — lime-led, then a cool spread (mirrors the chart
+     defaults in widgets/*-chart.tsx so the tokens and the charts agree) */
+  --ofw-series-1: #E8FF59;
+  --ofw-series-2: #22d3ee;
+  --ofw-series-3: #a78bfa;
   --ofw-series-4: #4ade80;
   --ofw-series-5: #f472b6;
-  --ofw-series-6: #60a5fa;
-  --ofw-series-7: #fb7185;
+  --ofw-series-6: #38bdf8;
+  --ofw-series-7: #fb923c;
   --ofw-series-8: #c084fc;
 
   --ofw-radius:    10px;
@@ -65,16 +66,16 @@ body.ofw-page {
   font-family: var(--ofw-font-body);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* atmosphere: a single soft amber wash, faint dot grid */
+  /* atmosphere: a single soft lime wash, faint dot grid */
   background-image:
-    radial-gradient(900px 480px at 88% -12%, rgba(245, 166, 35, 0.07), transparent 60%),
+    radial-gradient(900px 480px at 88% -12%, rgba(232, 255, 89, 0.05), transparent 60%),
     radial-gradient(700px 460px at 6% 0%, rgba(94, 200, 216, 0.045), transparent 55%),
     radial-gradient(rgba(130, 160, 200, 0.05) 1px, transparent 1px);
   background-size: 100% 100%, 100% 100%, 22px 22px;
   background-attachment: fixed;
 }
 
-body.ofw-page ::selection { background: var(--ofw-accent-soft); color: #fff3df; }
+body.ofw-page ::selection { background: var(--ofw-accent-soft); color: #f7ffe0; }
 
 body.ofw-page ::-webkit-scrollbar { width: 11px; height: 11px; }
 body.ofw-page ::-webkit-scrollbar-thumb {
@@ -99,6 +100,29 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
    that lives outside it (modals/dialogs are body-portaled at z-50). Without this, a
    map or chart can leak on top of the New task / New project modals. */
 .ofw-dashboard { display: flex; flex-direction: column; gap: 20px; isolation: isolate; }
+
+/* ---------------- @kit token bridge (scoped to the widget tree) ----------------
+   A handful of widgets (slider, dropdown, sql-table, text-input) render through
+   shared `@kit` ui-kit primitives whose accent is the app shell's grayscale
+   `--primary` (oklch(0.985 0 0)). Inside a widget tree the house accent is the
+   "Signal" lime, so re-point the @kit accent tokens to the same lime — SCOPED to
+   `.ofw-dashboard` so the app shell's own grayscale primary is untouched. This is
+   what unifies the slider value chip, the Radix Select, the SliderRange fill, and
+   input focus rings onto the one lime accent instead of three competing colors. */
+.ofw-dashboard {
+  /* the base shadcn tokens drive the `bg-primary` / `text-primary` utilities */
+  --primary: var(--ofw-accent);
+  --primary-foreground: #141a02;
+  --ring: var(--ofw-accent);
+  /* the @theme-emitted `--color-*` aliases are what `var(--color-primary)` /
+     `ring-ring` resolve to directly (e.g. the SliderRange track gradient and
+     every focus ring). They do NOT re-substitute the scoped `--primary`, so they
+     must be re-pointed to the lime accent explicitly or the track/rings stay
+     grayscale. */
+  --color-primary: var(--ofw-accent);
+  --color-primary-foreground: #141a02;
+  --color-ring: var(--ofw-accent);
+}
 
 /* Task-board fill (the app Tasks surface passes the `fill` prop): the board's
    card chain stretches to the dashboard height so the kanban columns reach the
@@ -148,7 +172,9 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
 
 /* ---------------- Charts ---------------- */
 .ofw-chart { flex: 1 1 auto; height: auto; min-height: 0; min-width: 0; font-family: var(--ofw-font-mono); }
-.ofw-chart .recharts-cartesian-axis-tick-value { font-family: var(--ofw-font-mono); }
+/* Recharts renders axis tick text in its default #666 (~3.3:1 on the dark card —
+   fails WCAG AA). Pin the fill to the dim token (≈7:1) so axes are readable. */
+.ofw-chart .recharts-cartesian-axis-tick-value { font-family: var(--ofw-font-mono); fill: var(--ofw-text-dim); }
 .ofw-chart .recharts-default-legend { font-family: var(--ofw-font-body); }
 
 /* ---------------- Image / iframe / raw HTML ---------------- */
@@ -357,11 +383,11 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
 }
 .ofw-btn:hover:not(:disabled) { color: var(--ofw-text); border-color: var(--ofw-line-2); }
 .ofw-btn--primary {
-  color: #1a1206; background: var(--ofw-accent); border-color: var(--ofw-accent);
+  color: #141a02; background: var(--ofw-accent); border-color: var(--ofw-accent);
   font-weight: 600;
 }
 .ofw-btn--primary:hover:not(:disabled) {
-  color: #1a1206; background: var(--ofw-accent-2); border-color: var(--ofw-accent-2);
+  color: #141a02; background: var(--ofw-accent-2); border-color: var(--ofw-accent-2);
   box-shadow: 0 0 16px -6px var(--ofw-accent-glow);
 }
 /* brief feedback flash after a non-submit press */
@@ -373,7 +399,7 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
 }
 .ofw-btn--primary.ofw-btn--pressed,
 .ofw-btn--primary.ofw-btn--pressed:hover:not(:disabled) {
-  color: #1a1206; background: var(--ofw-accent-2); border-color: var(--ofw-accent-2);
+  color: #141a02; background: var(--ofw-accent-2); border-color: var(--ofw-accent-2);
   box-shadow: 0 0 0 1px var(--ofw-accent-line), 0 0 14px -4px var(--ofw-accent-glow);
 }
 /* locked state after a submit (terminal) press */
@@ -398,7 +424,7 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
 .ofw-vr__ctl { padding: 4px 10px; font-size: 12px; }
 .ofw-vr__ctl--active,
 .ofw-vr__ctl--active:hover:not(:disabled) {
-  color: #1a1206; background: var(--ofw-accent); border-color: var(--ofw-accent);
+  color: #141a02; background: var(--ofw-accent); border-color: var(--ofw-accent);
   font-weight: 600;
 }
 .ofw-vr__tc {
@@ -498,7 +524,7 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
 .ofw-vr__qa-btn--approve { color: #4ade80; border-color: rgba(74, 222, 128, 0.4); }
 .ofw-vr__qa-btn--approve:hover { background: #4ade80; color: #053826; }
 .ofw-vr__qa-btn--reflag { color: var(--ofw-accent); border-color: var(--ofw-accent-line); }
-.ofw-vr__qa-btn--reflag:hover { background: var(--ofw-accent); color: #1a1206; }
+.ofw-vr__qa-btn--reflag:hover { background: var(--ofw-accent); color: #141a02; }
 
 /* ---------------- Unknown / unsupported component placeholder ---------------- */
 .ofw-unknown {

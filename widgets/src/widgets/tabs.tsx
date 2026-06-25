@@ -66,7 +66,7 @@ function Tabs({ element }: ComponentRenderProps<TabsProps>) {
             className={
               "relative -mb-px border-b-2 px-3 py-2 text-sm transition-colors " +
               (i === shown
-                ? "border-foreground font-medium text-foreground"
+                ? "border-primary font-medium text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground")
             }
           >
