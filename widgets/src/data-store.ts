@@ -144,6 +144,63 @@ export function harvestInitialParams(config: unknown): Record<string, unknown> {
 }
 
 /**
+ * Collect every `_queryId` the planner stamps into a config, mirroring the
+ * Python planner's tree walk (`planner._iter_nodes` plus the map-layer / canvas
+ * stamping): a node's own `props._queryId`, each `map`/`fused-map` layer's
+ * `props.layers[]._queryId`, recursing the `children` subtree(s) and, for a
+ * `canvas` node, each `props.nodes[].widget` subtree.
+ *
+ * `WidgetDataStore` uses this (when no explicit `queryIds` is given) to track
+ * param-free queries — which are absent from the planner depMap — so they still
+ * resolve on first paint. Tolerant of malformed / agent-authored input:
+ * non-object nodes, missing/odd `props`, and non-array `children`/`layers`/
+ * `nodes` are skipped rather than throwing. Deduped (a planner queryId is unique
+ * per query).
+ */
+export function collectConfigQueryIds(config: unknown): string[] {
+  const ids = new Set<string>();
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (!node || typeof node !== "object") return;
+    const rec = node as Record<string, unknown>;
+    const props =
+      rec.props && typeof rec.props === "object"
+        ? (rec.props as Record<string, unknown>)
+        : {};
+    const qid = props._queryId;
+    if (typeof qid === "string" && qid !== "") ids.add(qid);
+    // map / fused-map: each data layer is stamped on the layer, not the node.
+    if (rec.type === "map" || rec.type === "fused-map") {
+      const layers = props.layers;
+      if (Array.isArray(layers)) {
+        for (const layer of layers) {
+          if (layer && typeof layer === "object") {
+            const lid = (layer as Record<string, unknown>)._queryId;
+            if (typeof lid === "string" && lid !== "") ids.add(lid);
+          }
+        }
+      }
+    }
+    // children: a list of nodes, or (defensively) a single node object.
+    if (Array.isArray(rec.children)) rec.children.forEach(visit);
+    else if (rec.children && typeof rec.children === "object")
+      visit(rec.children);
+    // canvas: per-node widget subtrees live under props.nodes[].widget.
+    if (rec.type === "canvas" && Array.isArray(props.nodes)) {
+      for (const cn of props.nodes) {
+        if (cn && typeof cn === "object")
+          visit((cn as Record<string, unknown>).widget);
+      }
+    }
+  };
+  visit(config);
+  return [...ids];
+}
+
+/**
  * Comment-loss guard for the agent push loop (json-ui-comments.md §4–5).
  *
  * On every agent `widget push` the page rebuilds its params store and reseeds
@@ -229,6 +286,15 @@ export interface WidgetDataStoreOptions {
    */
   harvestedParams?: Record<string, unknown>;
   /**
+   * The query ids this store is responsible for resolving. Param-free queries
+   * are absent from `depMap`, so the store tracks them from this set (or, when
+   * omitted, from a walk of `config`) to make them eligible for first-paint
+   * resolution. The canvas per-node store passes its OWN node's ids so it never
+   * resolves another node's queries; the top-level store omits it and tracks the
+   * whole config.
+   */
+  queryIds?: readonly string[];
+  /**
    * The bridge's params store. The store reads current param values through
    * `params.getSnapshotMany` to detect staleness and to build the POST body.
    */
@@ -279,6 +345,26 @@ export class WidgetDataStore {
         (qidToParams[qid] ??= []).push(param);
       }
     }
+
+    // Track EVERY query the config plans, not just the param-driven ones. A
+    // param-free query never appears in depMap, so without this it is invisible
+    // to computeStaleQids() AND isStale() short-circuits it to "fresh" — it would
+    // never resolve. That is exactly the deployed-widget case: the serve plane
+    // seeds `data` EMPTY ({}) and every query must resolve on first paint via a
+    // single POST to resolveUrl. Seed an empty param list for each tracked qid
+    // (an empty list keeps the "no params => never re-resolves on a param change"
+    // semantics; the unresolved-rows check in isStale is what drives the first
+    // fetch).
+    //
+    // The tracked set defaults to a walk of `config`, but a caller that owns only
+    // a SUBSET passes `queryIds` explicitly — the canvas per-node store does this
+    // so it only ever resolves its own node's queries (per-node isolation), never
+    // another node's, even though every node is handed the full canvas config.
+    const trackedQids = options.queryIds ?? collectConfigQueryIds(this.config);
+    for (const qid of trackedQids) {
+      if (!(qid in qidToParams)) qidToParams[qid] = [];
+    }
+
     this.qidToParams = qidToParams;
     this.allParamNames = [...allNames].sort();
 
@@ -319,7 +405,15 @@ export class WidgetDataStore {
 
   /** A qid is stale if its current param values differ from the backing rows'. */
   private isStale(qid: string): boolean {
-    // No params => never re-resolves (static or context-free binding).
+    // Fetch-on-mount: a query with no resolved rows AND no recorded error has
+    // never been resolved, so it is stale regardless of params. This is what
+    // makes a param-free query resolve on first paint when `data` was seeded
+    // empty (the deployed serve plane). An errored qid has `data[qid]` set to an
+    // empty entry (applyResponse / applyEndpointError) so it reads as resolved
+    // here — we surface its error instead of re-fetching it on every render.
+    if (this.data[qid] === undefined && this.errors[qid] === undefined)
+      return true;
+    // No params => never re-resolves on a param change (static / context-free).
     if ((this.qidToParams[qid] ?? []).length === 0) return false;
     const current = snapshotKey(this.currentSnapshotFor(qid));
     const backing = this.paramSnapshotKey[qid];
@@ -484,8 +578,12 @@ export class WidgetDataStore {
         delete this.errors[qid];
       } else {
         // Resolver didn't return this qid (unknown id ignored server-side):
-        // leave existing rows untouched but still advance its snapshot so we
-        // don't spin re-fetching a qid the server won't resolve.
+        // leave any existing rows untouched, but if we have none yet record an
+        // empty entry so the fetch-on-mount check in isStale (which treats
+        // `undefined` rows as unresolved) doesn't spin re-fetching a qid the
+        // server won't resolve. The snapshot is still advanced below.
+        if (this.data[qid] === undefined)
+          this.data[qid] = { columns: [], rows: [] };
       }
       this.paramSnapshotKey[qid] = snapshotKey(
         this.restrictToQid(qid, fullSnapshot),

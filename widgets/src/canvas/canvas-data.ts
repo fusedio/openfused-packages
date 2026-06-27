@@ -158,6 +158,12 @@ export function createCanvasRuntime(
       depMap: restrictDepMap(depMap, ownQids),
       resolveUrl: inputs.resolveUrl,
       config: inputs.config,
+      // Track ONLY this node's own queries. `config` is the FULL canvas config
+      // (the resolver re-stamps the same ids), but without this the store would
+      // walk it and treat EVERY node's queries as its own — re-resolving other
+      // nodes' queries on mount and breaking per-node isolation. This node's own
+      // param-free queries still resolve on first paint.
+      queryIds: ownQids,
       // The cached rows came from the host's ungated full-config resolve. Seed
       // that backing snapshot so nodes whose gated view differs refetch before
       // serving rows resolved with inaccessible defaults.
