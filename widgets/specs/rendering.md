@@ -106,12 +106,20 @@ contract-level summary; the exhaustive invariants live in
   re-read via `getSnapshot`. There is no canvas/UDF re-execution — a bound-param change
   re-resolves the dependent queries server-side via the data store.
 - **Data store** (`WidgetDataStore`). Holds resolver-produced rows keyed by `_queryId`,
-  inverts the planner `depMap` (`param → [qid]` ⇒ `qid → [params]`), and on a stale
-  read (`ensureFresh`) coalesces a **single-flight** POST to the widget-data endpoint:
+  inverts the planner `depMap` (`param → [qid]` ⇒ `qid → [params]`), and additionally
+  **tracks every query the config plans** — not just the param-driven ones that appear
+  in `depMap` — via `collectConfigQueryIds` (a config walk mirroring the Python
+  planner) or an explicit `queryIds` set (the canvas per-node store passes its OWN
+  node's ids so it never resolves another node's queries). On a stale read
+  (`ensureFresh`) it coalesces a **single-flight** POST to the widget-data endpoint:
   an in-flight fetch for the identical param snapshot is awaited (coalesce), a newer
   snapshot aborts the older one (supersede), and a stale response is dropped by a
-  snapshot-identity guard. A per-qid error surfaces in-card and **never blanks the
-  widget**. The `await` is what keeps the SDK hook's `loading` flag true through a
+  snapshot-identity guard. A query with **no resolved rows and no recorded error counts
+  as stale**, so it resolves once on first paint even with no `$param` deps — this is
+  what populates a **deployed** widget whose injected `data` was seeded empty (`{}`);
+  the POST then carries `only: [<unresolved qids>]`. A per-qid error surfaces in-card
+  and **never blanks the widget** (and an errored qid is not re-fetched on every
+  render). The `await` is what keeps the SDK hook's `loading` flag true through a
   refetch. First paint is aligned with the server resolve by `harvestInitialParams`
   (pre-order harvest of input `param`/`defaultValue` + the `__comments` seed).
 - **Action sink** (`ActionSinkContext`, `type ActionSink = (action, terminal) =>
