@@ -65,6 +65,42 @@ function BoundNode({
   );
 }
 
+// --------------------------------------------------------------- style coerce
+//
+// The json-ui contract is `style: string` (_universal.ts) and every widget reads
+// it through `parseStyle(props.style)`. `parseStyle` calls `.split(";")` on its
+// input, so an agent-authored config that emits a React-style OBJECT
+// (`{display:"flex"}`) makes `parseStyle` THROW `style.split is not a function`.
+// Unguarded, that throw unmounts the whole widget tree — the black-screen bug
+// (ITEM-11878). Normalizing an object `style` to the CSS string `parseStyle`
+// expects, HERE at the single render choke point, keeps every widget unchanged
+// and lets a malformed widget render instead of crashing the app.
+const kebabCase = (s: string): string =>
+  s.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+
+/** Serialize a React-style object to the kebab-case CSS string `parseStyle` digests. */
+export function styleObjectToCss(style: Record<string, unknown>): string {
+  return Object.entries(style)
+    .filter(([, v]) => v != null && v !== "")
+    .map(([k, v]) => `${kebabCase(k)}: ${String(v)}`)
+    .join("; ");
+}
+
+/**
+ * Return `props` with an object `style` coerced to a CSS string (string/absent
+ * `style` is left untouched). Shallow-copies only when it rewrites, so the
+ * original config object is never mutated.
+ */
+function coerceStyleProp(
+  props: Record<string, unknown>,
+): Record<string, unknown> {
+  const style = props.style;
+  if (style && typeof style === "object" && !Array.isArray(style)) {
+    return { ...props, style: styleObjectToCss(style as Record<string, unknown>) };
+  }
+  return props;
+}
+
 // ------------------------------------------------------------ unknown / leaves
 function UnknownComponent({ type }: { type: string }): React.ReactElement {
   return (
@@ -109,7 +145,9 @@ function NodeInner({
   path: string;
 }): React.ReactElement {
   const Component: ComponentRenderer | undefined = registry[node.type];
-  const props = node.props ?? {};
+  // Coerce an object `style` to the CSS string the widgets' `parseStyle` expects
+  // (a render-tree-wide guard against the black-screen throw — see coerceStyleProp).
+  const props = coerceStyleProp(node.props ?? {});
   const childNodes = renderChildren(node.children, path);
 
   if (!Component) return <UnknownComponent type={node.type} />;
