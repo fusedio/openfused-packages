@@ -16,72 +16,32 @@
 // This script is the SOURCE-SIDE enforcement of the same rule: it fails a PR here
 // with the same verdict the downstream build would give, before any submodule bump.
 //
-// ── KEEP IN SYNC WITH fused/static-ui/build.mjs ──────────────────────────────
-// `WIDGET_PKG_ALLOWLIST` and `KNOWN_PARENT_PREFIXES` below MIRROR the two lists in
-// fused/static-ui/build.mjs. They are the canonical source. If a widget module
-// legitimately needs a new dependency or a new shared sibling, it must be added to
-// BOTH the build guard there and the lists here (and, for an npm package, the
-// addition must be a deliberate, bounded one — that is the whole point of the guard).
+// ── Allowlist lives in widget-import-allowlist.mjs ───────────────────────────
+// The lists are the CANONICAL single source of truth in this repo; fused/static-ui/
+// build.mjs imports the SAME file from the packages submodule, so there is no second
+// copy to keep in sync. A new widget dependency is a deliberate, bounded addition
+// THERE (and nowhere else).
 //
-// Scope note: the build guard only ever runs on modules esbuild actually pulls
-// into the bundle. Test files (`__tests__/`, `*.test.*`, `*.spec.*`) are never in
-// that graph, so they are excluded here too — otherwise their `vitest` / deep
-// relative imports would be false positives the real build never hits.
+// Scope note: the build guard only ever runs on modules esbuild actually pulls into
+// the bundle. Test files (`__tests__/`, `*.test.*`, `*.spec.*`) are never in that
+// graph, so they are excluded here too — otherwise their `vitest` / deep relative
+// imports would be false positives the real build never hits.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, resolve, join, relative, basename, isAbsolute } from "node:path";
+import { dirname, resolve, join, relative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  WIDGET_PKG_ALLOWLIST as PKG_ALLOWLIST_LIST,
+  KNOWN_PARENT_PREFIXES,
+  MAP_PLACEHOLDER_MODULES as MAP_PLACEHOLDER_LIST,
+} from "./widget-import-allowlist.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const widgetsDir = resolve(here, "..", "src", "widgets"); // packages/widgets/src/widgets
 const repoRoot = resolve(here, "..", "..");
 
-// ── Allowlist (mirror of fused/static-ui/build.mjs WIDGET_PKG_ALLOWLIST) ──────
-const WIDGET_PKG_ALLOWLIST = new Set([
-  "react",
-  "react-dom",
-  "react/jsx-runtime",
-  "react-dom/client",
-  "react-markdown",
-  "recharts",
-  "zod",
-  "@fusedio/widget-sdk",
-  // Bounded runtime packages a single widget legitimately needs (NOT dumb-UI, so
-  // they cannot route through @kit). Each is a deliberate, named addition:
-  //   • @xyflow/react — the canvas widget's ReactFlow graph
-  //   • @dnd-kit/*     — task-board's drag-and-drop (sortable columns/cards)
-  "@xyflow/react",
-  "@dnd-kit/core",
-  "@dnd-kit/sortable",
-  "@dnd-kit/utilities",
-]);
-
-// Map widgets are aliased to `_map-placeholder` by build.mjs (the map-placeholder
-// plugin, filter /^\.\/(map|map-bounds|map-h3|fused-map)$/) BEFORE the guard runs,
-// so the real modules — and their `../maps/*` renderer imports (MapLibre/deck.gl,
-// which the frozen bundle deliberately does not ship) — are never pulled into the
-// bundle and never policed. Mirror that here by excluding them from the scan. (Do
-// NOT instead allow `../maps/`: that would let a NON-map widget break the bundle.)
-const MAP_PLACEHOLDER_MODULES = new Set(["map", "map-bounds", "map-h3", "fused-map"]);
-
-// ── Known parent siblings (mirror of build.mjs KNOWN_PARENT_PREFIXES) ─────────
-// A widget module may reach one level up (`../x`) ONLY for these shared
-// render-surface modules (the bridge/store/render helpers + shared chrome).
-const KNOWN_PARENT_PREFIXES = [
-  "static-bridge",
-  "data-store",
-  "render",
-  "css",
-  "session",
-  "parley",
-  "action-sink",
-  "components/",
-  "canvas/",
-  // Shared render-surface siblings used by thin widget wrappers:
-  //   diff.tsx → ../diff-view, markdown.tsx → ../markdown-view
-  "diff-view",
-  "markdown-view",
-];
+const WIDGET_PKG_ALLOWLIST = new Set(PKG_ALLOWLIST_LIST);
+const MAP_PLACEHOLDER_MODULES = new Set(MAP_PLACEHOLDER_LIST);
 
 // ── Comment masking ──────────────────────────────────────────────────────────
 // Replace comment bodies with spaces (newlines preserved, so offsets/line numbers
@@ -223,7 +183,8 @@ console.error(
   `\n  • packages: ${[...WIDGET_PKG_ALLOWLIST].join(", ")}` +
   "\n  • @kit / @kit/* (the ui-kit dumb-UI library — route icons and primitives through here, not lucide-react)" +
   "\n  • relative ./* siblings, and ../{" + KNOWN_PARENT_PREFIXES.join(",") + "}" +
-  "\n\nNeed a new dependency? Add it deliberately to BOTH this list and" +
-  "\nfused/static-ui/build.mjs (WIDGET_PKG_ALLOWLIST / KNOWN_PARENT_PREFIXES) — they must stay in sync.",
+  "\n\nNeed a new dependency? Add it deliberately, in ONE place, to" +
+  "\nscripts/widget-import-allowlist.mjs — the single source of truth both this guard" +
+  "\nand fused/static-ui/build.mjs read (it must be a bounded, intentional addition).",
 );
 process.exit(1);

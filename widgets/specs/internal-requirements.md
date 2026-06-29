@@ -194,13 +194,20 @@ Map widgets (`map`, `map-bounds`, `map-h3`, `fused-map`) are exempt — the buil
 them to the placeholder (§10) before the guard runs, so their `../maps/*` imports never
 enter the bundle.
 
-This guard lives downstream in `fused`, so historically a disallowed import here only broke
-when someone bumped the submodule and rebuilt `widget.html`. The
-`check:widget-imports` script (`scripts/check-widget-imports.mjs`, run by the
-`widget-import-guard` GitHub Actions workflow on every PR) mirrors the same allowlist and
-fails **here** instead. Its `WIDGET_PKG_ALLOWLIST` / `KNOWN_PARENT_PREFIXES` must be kept in
-sync with `fused/static-ui/build.mjs`: a new widget dependency is a deliberate, bounded
-addition to **both**.
+**The allowlist is owned here, not downstream.** The render surface lives in this repo, so
+the rule describing what it may import lives here too: `scripts/widget-import-allowlist.mjs`
+(`WIDGET_PKG_ALLOWLIST`, `KNOWN_PARENT_PREFIXES`, `MAP_PLACEHOLDER_MODULES`) is the **single
+source of truth**. Both enforcers read it — there is no second copy to keep in sync:
+
+- `scripts/check-widget-imports.mjs` (the `check:widget-imports` script, run by the
+  `widget-import-guard` GitHub Actions workflow on every PR here);
+- `fused/static-ui/build.mjs` (the esbuild `widget-import-guard` that builds `widget.html`),
+  which **imports** that file from the `packages` submodule rather than redefining the lists.
+
+Historically the guard existed only downstream in `fused`, so a disallowed import here broke
+nothing until someone bumped the submodule and rebuilt `widget.html`. Authoring the allowlist
+here — and failing the PR here — closes that gap. A new widget dependency is a deliberate,
+bounded addition in **one** place: `widget-import-allowlist.mjs`.
 
 ## 11. Tests & generation tooling
 
