@@ -27,7 +27,7 @@ function MapPlaceholder({ element }: ComponentRenderProps) {
       <div className="ofw-map-placeholder__title">Map preview</div>
       {heading ? <div className="ofw-map-placeholder__name">{heading}</div> : null}
       <div className="ofw-map-placeholder__body">
-        Maps render in the OpenFused app. Open this widget with the app or the parley to
+        Maps render in the Fused app. Open this widget with the app or the parley to
         view it; deployed-serve map rendering is coming in a follow-up.
       </div>
     </div>

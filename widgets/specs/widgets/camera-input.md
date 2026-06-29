@@ -19,7 +19,7 @@
   - Tainted-canvas `toDataURL` throw: caught and reported as `"Could not capture photo."` — a press can never throw uncaught.
   - All errors render in an in-card `role="alert"` block; the widget is never blanked.
   - The media stream is always stopped on unmount (and before each `startCamera`).
-- Deliberate behavioural subset vs the Fused app (app-only machinery intentionally out of scope): the file-picker fallback (`Send photo`), `imageFormat`/`quality` knobs, `disabled`/`readOnly`, and the rich retake/clear button matrix. openfused keeps only the `getUserMedia → capture` path and degrades gracefully.
+- Deliberate behavioural subset vs the Fused app (app-only machinery intentionally out of scope): the file-picker fallback (`Send photo`), `imageFormat`/`quality` knobs, `disabled`/`readOnly`, and the rich retake/clear button matrix. fused keeps only the `getUserMedia → capture` path and degrades gracefully.
 - WHERE it renders: everywhere the renderer runs that exposes `navigator.mediaDevices.getUserMedia` (a live browser with camera permission). No native-app-only restriction.
 
 ## Exposed params

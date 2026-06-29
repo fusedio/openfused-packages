@@ -63,7 +63,7 @@ import { Field } from "../components/field";
 import { LoadingState } from "../components/card";
 
 // ----------------------------------------------------------------- props schema
-// Mirrors src/openfused/widgets/schema/dropdown.json's prop set exactly, and is a
+// Mirrors src/fused/agent_core/widgets/schema/dropdown.json's prop set exactly, and is a
 // strict subset of the application DropdownPropsSchema:
 //   label, param (optional), sql, options ({value,label?}), placeholder,
 //   defaultValue, disabled, nullable, + the universal `style` prop.

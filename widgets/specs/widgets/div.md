@@ -24,6 +24,6 @@
 - **Writes param:** no (`writesParam: false`).
 
 ## Notes
-- Default layout (a width-shrinkable flex column) lives in CSS, not in JS — openfused deliberately avoids baseui / `@json-render/react`, so the app's flex-column container is reproduced as plain CSS.
+- Default layout (a width-shrinkable flex column) lives in CSS, not in JS — fused deliberately avoids baseui / `@json-render/react`, so the app's flex-column container is reproduced as plain CSS.
 - Authored only against `@fusedio/widget-sdk` (`defineComponent`, `ComponentRenderProps`, the style parser); reads the single `element` prop and accesses `element.props` (never spread).
 - Children are rendered as-is via `element.children`; the renderer is responsible for walking the subtree before passing it down.

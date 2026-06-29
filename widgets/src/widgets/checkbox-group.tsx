@@ -7,10 +7,10 @@
 // agent-authored `ask_user` widget). It is the only json-ui input that writes a
 // non-scalar value by design.
 //
-// App-parity: this is an OpenFused-owned FEEDBACK input with NO Fused
+// App-parity: this is an agent_core-owned FEEDBACK input with NO Fused
 // application equivalent (the app's only selection input is single-select
 // `dropdown`; its multi-select facet is `sql-table` row-selection). So its prop
-// names/semantics align to OpenFused's own `dropdown` (the closest sibling),
+// names/semantics align to agent_core's own `dropdown` (the closest sibling),
 // NOT to an app component. Because it writes an ARRAY param it is — like
 // `sql-table`'s `selectionParam` and `video-review` — a feedback primitive
 // whose array param MUST NEVER be referenced in SQL ($param is text

@@ -12,7 +12,7 @@ Every renderable component is defined **once** and only once.
 
 - A component module per `type` default-exports
   `{ ...defineComponent({ component, props, description, hasChildren }), writesParam }`
-  — the SDK's `CatalogComponentDefinition` plus the OpenFused-local `writesParam` flag
+  — the SDK's `CatalogComponentDefinition` plus the Fused-local `writesParam` flag
   (the package's `ComponentDef` shape).
 - The **catalog map** (`componentDefs`) is the type-string → `ComponentDef` record. Adding a
   component is a one-line edit there plus the new per-`type` component module.
@@ -54,19 +54,19 @@ component's defaults.
 
 - There is intentionally **no universal `visible` prop** and no conditional-render / tab
   primitive — the Fused app has neither and lints props with `.strict()`, so a `visible`
-  key would break paste-compatibility. OpenFused's component set is a strict **subset** of
+  key would break paste-compatibility. Fused's component set is a strict **subset** of
   the app's.
 
 ## 4. App parity (paste-compatibility)
 
-Each component (except the three OpenFused-owned primitives) must be a strict,
+Each component (except the three Fused-owned primitives) must be a strict,
 paste-compatible **subset** of the matching Fused application component: identical type +
 prop names + semantics, **fewer** props, **never** extra. Deliberate *behavioural* subsets
 (e.g. `text` renders a literal `value` as-authored rather than substituting inline
 `$param`/`{{udf}}`; map `param` emits a `"w,s,e,n"` string instead of the app's array) are
 allowed and are documented in the component's source header and per-widget spec.
 
-The three primitives **not** governed by app parity, owned by OpenFused spec:
+The three primitives **not** governed by app parity, owned by Fused spec:
 
 - `button` and `video-review` — the human's feedback/reply channel (`spec/ui/json-ui.md`
   § Actions & selection).

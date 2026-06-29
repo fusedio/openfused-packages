@@ -1,6 +1,6 @@
 // widgets/tabs.tsx — a tabbed container: a label bar over one visible child panel.
 //
-// A reusable layout primitive (OpenFused-owned) for composing tabbed surfaces from
+// A reusable layout primitive (Fused-owned) for composing tabbed surfaces from
 // other components — e.g. the agent UI (Overview / Runs / Instructions) or any
 // dashboard section set. The `tabs` prop lists the labels; `element.children` are
 // the panels in the SAME order (one child per tab). Only the active panel renders;

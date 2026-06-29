@@ -1,4 +1,4 @@
-// widgets/markdown.tsx — render Markdown text. OpenFused-owned primitive (no app
+// widgets/markdown.tsx — render Markdown text. Fused-owned primitive (no app
 // `markdown` parity: the app `text` component is a single-value display and the
 // old openfused markdown component was retired into `text`). This brings a
 // dedicated Markdown renderer back as its OWN type so authors can surface prose,

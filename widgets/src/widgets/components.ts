@@ -84,7 +84,7 @@ export const componentDefs: ComponentDefMap = {
   iframe,
   "video-review": videoReview,
   canvas,
-  // OpenFused-owned primitives (NOT app parity): the task board + the agent detail
+  // Fused-owned primitives (NOT app parity): the task board + the agent detail
   // view, both backed by the packaged _core CRUD UDFs.
   "task-board": taskBoard,
   "agent-detail": agentDetail,

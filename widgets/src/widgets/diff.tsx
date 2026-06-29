@@ -1,4 +1,4 @@
-// widgets/diff.tsx — render a textual diff. OpenFused-owned primitive (no app
+// widgets/diff.tsx — render a textual diff. Fused-owned primitive (no app
 // parity). Built for "diff of markdown specs": pass two versions (`before` /
 // `after`) and the widget renders a colored line-level diff. A precomputed
 // unified-diff string (`diff`) is also accepted for the git path.

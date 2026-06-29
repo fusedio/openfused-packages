@@ -125,7 +125,7 @@ reach equal-width columns with `div` + `"flex: 1;"`. There is no layout prop bey
 
 **No conditional rendering — and why.** There is **no `visible` prop** and **no tab
 primitive**. The Fused application has neither and lints component props with `.strict()`,
-so a `visible` key would break paste-compatibility — OpenFused's component set is a strict
+so a `visible` key would break paste-compatibility — Fused's component set is a strict
 **subset** of the application's. Every node always renders. To change *what the user sees*,
 drive a query's result through its `$param` inputs (e.g. a `dropdown` that filters the SQL)
 rather than showing/hiding nodes. (Both the renderer and the universal-prop declaration
@@ -204,7 +204,7 @@ authoring semantics.
 
 The exact prop schemas are component-owned (generated catalog — [`catalog.md`](./catalog.md));
 this section fixes only the cross-cutting semantics. `button`, `video-review`, and `canvas`
-are the three OpenFused-owned primitives **not** governed by app parity.
+are the three Fused-owned primitives **not** governed by app parity.
 
 ### `form` — submit-bundling
 
@@ -217,7 +217,7 @@ field store and broadcasts **on submit** (a descendant `button`), not while typi
   `param` individually.
 
 Unlike the Fused application, charts/tables inside a form update **on submit**, not live
-as you type — OpenFused has no client DuckDB to re-query mid-edit. Same config, same final
+as you type — Fused has no client DuckDB to re-query mid-edit. Same config, same final
 result, different timing ([`catalog.md`](./catalog.md); [`widgets/form.md`](./widgets/form.md)).
 
 ---

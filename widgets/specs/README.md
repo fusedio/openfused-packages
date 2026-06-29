@@ -46,5 +46,5 @@ One spec per component type — **why** it exists, the behavioural **expectation
 **Source**
 - [`sql-runner`](./widgets/sql-runner.md)
 
-**Feedback primitives** (OpenFused-owned; not app parity)
+**Feedback primitives** (Fused-owned; not app parity)
 - [`button`](./widgets/button.md) · [`video-review`](./widgets/video-review.md)
