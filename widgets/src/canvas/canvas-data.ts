@@ -32,27 +32,23 @@ import type { CanvasNode, JsonUiNode } from "./canvas-types";
 import {
   WidgetDataStore,
   harvestInitialParams,
+  collectConfigQueryIds,
   type DepMap,
 } from "../data-store";
 import type { WidgetData, WidgetErrors } from "../static-bridge";
 
-/** Collect every `_queryId` stamped into a widget subtree (server-resolved bindings). */
+/**
+ * Collect every `_queryId` stamped into a widget subtree (server-resolved
+ * bindings). Delegates to the data store's `collectConfigQueryIds` so the canvas
+ * sees the SAME query set the top-level store does — `props._queryId`,
+ * `map`/`fused-map` layer ids, recursed `children`, AND nested `canvas`
+ * `props.nodes[].widget` subtrees — not just `props._queryId` + `children`. This
+ * keeps a node's `queryIds` (fetch-on-mount + `only` scoping) and its
+ * `restrictDepMap` set complete for map/canvas widgets, matching the Python
+ * planner's traversal.
+ */
 export function collectQueryIds(widget: JsonUiNode | undefined): string[] {
-  const out = new Set<string>();
-  const visit = (node: unknown): void => {
-    if (!node || typeof node !== "object") return;
-    if (Array.isArray(node)) {
-      node.forEach(visit);
-      return;
-    }
-    const rec = node as Record<string, unknown>;
-    const props = rec.props as Record<string, unknown> | undefined;
-    const qid = props?._queryId;
-    if (typeof qid === "string" && qid !== "") out.add(qid);
-    if (Array.isArray(rec.children)) rec.children.forEach(visit);
-  };
-  visit(widget);
-  return [...out];
+  return collectConfigQueryIds(widget);
 }
 
 /** Restrict a `{param -> [queryId]}` depMap to a node's own query ids. */
