@@ -12,6 +12,7 @@
   "scripts": {
     "generate": "tsx scripts/generate.ts",
     "typecheck": "tsc --noEmit",
+    "check:widget-imports": "node scripts/check-widget-imports.mjs",
     "test": "vitest run",
     "test:browser": "vitest run --config vitest.browser.config.ts"
   },

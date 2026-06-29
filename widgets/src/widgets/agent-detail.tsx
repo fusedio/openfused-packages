@@ -12,7 +12,6 @@
 
 import { z } from "zod";
 import React from "react";
-import { Pencil } from "lucide-react";
 import {
   useDuckDbSqlQuery,
   useFusedWidgetBridge,
@@ -20,7 +19,7 @@ import {
   defineComponent,
   type ComponentRenderProps,
 } from "@fusedio/widget-sdk";
-import { Button, Input, Textarea, cn } from "@kit";
+import { Button, Input, Textarea, cn, Pencil } from "@kit";
 
 import { UNIVERSAL_PROPS } from "./_universal";
 import type { ComponentDef } from "./types";

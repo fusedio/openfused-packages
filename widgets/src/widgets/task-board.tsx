@@ -56,25 +56,6 @@
 import React from "react";
 import { z } from "zod";
 import {
-  AppWindow,
-  ArrowUpDown,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  CircleDot,
-  Columns3,
-  Folder,
-  Hourglass,
-  Layers,
-  Loader2,
-  Network,
-  Plus,
-  RotateCcw,
-  Search,
-  User,
-  X,
-} from "lucide-react";
-import {
   DndContext,
   DragOverlay,
   PointerSensor,
@@ -110,6 +91,23 @@ import {
   cn,
   issueStatusIcon,
   issueStatusIconDefault,
+  AppWindow,
+  ArrowUpDown,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  CircleDot,
+  Columns3,
+  Folder,
+  Hourglass,
+  Layers,
+  Loader2,
+  Network,
+  Plus,
+  RotateCcw,
+  Search,
+  User,
+  X,
 } from "@kit";
 
 import { UNIVERSAL_PROPS } from "./_universal";

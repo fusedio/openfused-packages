@@ -8,14 +8,13 @@
 
 import { z } from "zod";
 import React from "react";
-import { Check, Copy, Eye, EyeOff, KeyRound, Trash2 } from "lucide-react";
 import {
   useFusedWidgetBridge,
   parseStyle,
   defineComponent,
   type ComponentRenderProps,
 } from "@fusedio/widget-sdk";
-import { Button, Input } from "@kit";
+import { Button, Input, Check, Copy, Eye, EyeOff, KeyRound, Trash2 } from "@kit";
 
 import { UNIVERSAL_PROPS } from "./_universal";
 import type { ComponentDef } from "./types";

@@ -7,6 +7,7 @@
 
 export { cn } from "./cn";
 export * from "./status-colors";
+export * from "./icons";
 
 export * from "./avatar";
 export * from "./badge";
