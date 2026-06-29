@@ -172,9 +172,41 @@ without a model turn:
 - The canvas statically imports ReactFlow (`@xyflow/react`); the host bundles as a single
   inlined esbuild bundle (no code-splitting), so lazy-loading is deferred.
 
+### 10.1 The widget-module import allowlist (frozen-bundle guard)
+
+The deployed serve plane serves a widget as **one frozen, self-contained `widget.html`**
+(its Lambda has no Node, bundler, or CDN). The `fused` repo builds that bundle from
+`src/widgets/*` via esbuild under a **`widget-import-guard`** (`fused/static-ui/build.mjs`)
+that admits only a fixed set of imports, so a widget module can never silently drag an
+arbitrary or heavy dependency into the public bundle. A module under `src/widgets/*` may
+import only:
+
+- a fixed package allowlist — `react`, `react-dom`, `react-markdown`, `recharts`, `zod`,
+  `@fusedio/widget-sdk`, and the bounded per-widget runtime deps `@xyflow/react` (canvas)
+  and `@dnd-kit/{core,sortable,utilities}` (task-board);
+- **`@kit` / `@kit/*`** — the `ui-kit` dumb-UI library. **Icons come from `@kit`, never
+  `lucide-react` directly** (ui-kit re-exports a curated icon set from `@kit`; it already
+  depends on lucide transitively, so esbuild tree-shakes to only the icons used);
+- relative `./*` siblings, and the shared parents `../{static-bridge,data-store,render,css,
+  session,parley,action-sink,components/,canvas/,diff-view,markdown-view}`.
+
+Map widgets (`map`, `map-bounds`, `map-h3`, `fused-map`) are exempt — the build aliases
+them to the placeholder (§10) before the guard runs, so their `../maps/*` imports never
+enter the bundle.
+
+This guard lives downstream in `fused`, so historically a disallowed import here only broke
+when someone bumped the submodule and rebuilt `widget.html`. The
+`check:widget-imports` script (`scripts/check-widget-imports.mjs`, run by the
+`widget-import-guard` GitHub Actions workflow on every PR) mirrors the same allowlist and
+fails **here** instead. Its `WIDGET_PKG_ALLOWLIST` / `KNOWN_PARENT_PREFIXES` must be kept in
+sync with `fused/static-ui/build.mjs`: a new widget dependency is a deliberate, bounded
+addition to **both**.
+
 ## 11. Tests & generation tooling
 
 - Unit/browser tests live beside the code; `vitest` runs the unit suite and a browser mode
   (Playwright-backed) runs the browser suite.
 - `pnpm --filter @fusedio/widgets generate` runs the generator; `pnpm … typecheck` /
   `test` / `test:browser` are the other scripts.
+- `pnpm --filter @fusedio/widgets check:widget-imports` runs the frozen-bundle import
+  guard (§10.1) — a zero-dependency Node script, also enforced in CI.
