@@ -3,7 +3,7 @@
 > Form container that collects its descendant inputs and broadcasts them ON SUBMIT. With a top-level param, all fields are bundled into one JSON object on that param; without one, each field broadcasts to its own param. Renders its own submit button (submitLabel). Submit-to-apply: dependent queries re-resolve after submit, not live while typing.
 
 ## Why
-`form` is a CONTAINER that batches its descendant inputs and broadcasts their values to the param store ON SUBMIT instead of on every keystroke. Authors reach for it to group several fields (text-input, dropdown, slider, …) and apply them atomically — so dependent data-bound widgets re-resolve once, after submit, rather than per-keystroke. It is a config-level subset of the Fused application's `form` component (identical `param`/`submitLabel` names, types, and semantics), with one deliberate behavioural narrowing: openfused has no client-side DuckDB, so in-form edits cannot re-query live and instead apply on submit. Role: container.
+`form` is a CONTAINER that batches its descendant inputs and broadcasts their values to the param store ON SUBMIT instead of on every keystroke. Authors reach for it to group several fields (text-input, dropdown, slider, …) and apply them atomically — so dependent data-bound widgets re-resolve once, after submit, rather than per-keystroke. It is a config-level subset of the Fused application's `form` component (identical `param`/`submitLabel` names, types, and semantics), with one deliberate behavioural narrowing: fused has no client-side DuckDB, so in-form edits cannot re-query live and instead apply on submit. Role: container.
 
 ## Expectation
 - Renders a form container laid out as a flex column, then its `element.children`, then its OWN trailing submit button captioned `submitLabel || "Submit"`. The author's `style` string is parsed into inline styles and merged OVER the default container styles.
@@ -14,7 +14,7 @@
   - When `param` is absent/empty: broadcasts each field to its OWN param, skipping any empty field name. This preserves the application's top-level-`param` gotcha byte-for-byte.
 - `form` itself is NOT an input: it declares a `param` but NO `defaultValue`, does not two-way bind a single param, and is `writesParam: false` (so the generator's param+defaultValue lint is not triggered). The param writes happen imperatively through the bridge on submit, not via `useFusedParam`.
 - Submit-to-apply timing: field edits stay local until submit; pressing submit broadcasts and the normal reactivity path re-resolves dependent server-side queries. Same config and final result as the app, different timing.
-- Behavioural subset vs the Fused app: (1) no live in-form re-query on edit (submit-to-apply, forced by server-side-only SQL); (2) openfused's `button` widget is the feedback-session reply primitive and writes nothing to params, so it cannot drive submit — the Form renders its OWN submit button. A pasted app config that relied on a child submit button still renders; openfused just owns the submit affordance.
+- Behavioural subset vs the Fused app: (1) no live in-form re-query on edit (submit-to-apply, forced by server-side-only SQL); (2) fused's `button` widget is the feedback-session reply primitive and writes nothing to params, so it cannot drive submit — the Form renders its OWN submit button. A pasted app config that relied on a child submit button still renders; fused just owns the submit affordance.
 - Not data-bound (no `sql` prop); renders everywhere.
 
 ## Exposed params

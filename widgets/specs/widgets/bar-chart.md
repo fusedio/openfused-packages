@@ -3,7 +3,7 @@
 > Bar chart powered by a DuckDB SQL query; the query must return 'label' and 'value' columns. Set clickParam to write the clicked bar's label (a scalar) to a param — usable for in-widget drill-down via $param and reported in session feedback.
 
 ## Why
-A data-bound display component that renders a single-series bar chart (recharts) over the rows of a DuckDB SQL query. Authors reach for it to visualize one categorical-to-numeric series — counts, totals, rankings — directly from a `{{udf}}`/`$param` query without writing render code. Its ROLE is primarily **display/source**, with an optional **input/feedback** facet: when `clickParam` is set it doubles as a selection input. The prop contract is a strict, paste-compatible **SUBSET of the Fused app's `bar-chart`** (identical names/types/semantics, single-series only), EXCEPT `clickParam`, which is an OpenFused-owned feedback extension (not an app prop).
+A data-bound display component that renders a single-series bar chart (recharts) over the rows of a DuckDB SQL query. Authors reach for it to visualize one categorical-to-numeric series — counts, totals, rankings — directly from a `{{udf}}`/`$param` query without writing render code. Its ROLE is primarily **display/source**, with an optional **input/feedback** facet: when `clickParam` is set it doubles as a selection input. The prop contract is a strict, paste-compatible **SUBSET of the Fused app's `bar-chart`** (identical names/types/semantics, single-series only), EXCEPT `clickParam`, which is an Fused-owned feedback extension (not an app prop).
 
 ## Expectation
 - Renders inside the shared `Card` chrome (title from `title`, the universal `style` prop applied to it). The chart body is a recharts `ResponsiveContainer` → `BarChart` sized container-driven (no `x`/`height` props).
@@ -46,7 +46,7 @@ A data-bound display component that renders a single-series bar chart (recharts)
 | `_queryId` | string | — | (internal; resolver-stamped, not author-set) |
 
 - **Data-bound:** yes (`sql` → reads columns `label` and `value`, case-insensitive `Label`/`Value` fallback, `value` coerced to Number).
-- **Writes param:** `writesParam: false` at the definition level. It conditionally writes a SCALAR string (the clicked bar's `label`) to `props.clickParam` via `useFusedParam` only when `clickParam` is set and a bar is clicked — this is an OpenFused feedback extension, not the standard input contract.
+- **Writes param:** `writesParam: false` at the definition level. It conditionally writes a SCALAR string (the clicked bar's `label`) to `props.clickParam` via `useFusedParam` only when `clickParam` is set and a bar is clicked — this is an Fused feedback extension, not the standard input contract.
 
 ## Notes
 - ui-kit / shared primitives: the shared `Card`, `LoadingState`, `ErrorState`, and `EmptyState` chrome; chart built on `recharts` (`ResponsiveContainer`, `BarChart`, `Bar`, `XAxis`, `YAxis`, `CartesianGrid`, `Tooltip`, `LabelList`).

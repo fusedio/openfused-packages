@@ -5,8 +5,8 @@
 ## Why
 A dedicated Markdown renderer. Authors reach for it to surface prose, reports,
 notes, or any GitHub-flavored markdown without hand-writing HTML. It is an
-**OpenFused-owned primitive** (no app parity): the Fused application's `text`
-component is a single-value display, and OpenFused's old markdown component was
+**Fused-owned primitive** (no app parity): the Fused application's `text`
+component is a single-value display, and Fused's old markdown component was
 retired into `text`. This brings markdown back as its **own type**, so `text`
 stays a scalar display, `html` stays the raw-HTML escape hatch, and `markdown`
 owns prose.

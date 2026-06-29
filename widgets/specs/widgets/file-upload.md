@@ -3,7 +3,7 @@
 > File picker that reads selected files to data URLs and writes them to a param (single data URL, or JSON array when multiple).
 
 ## Why
-`file-upload` is an INPUT component: a browser file picker that lets the human pick one or more local files and broadcasts their contents into the param store, where downstream nodes can read them. The author reaches for it when a widget needs user-supplied file content (an image, a CSV, JSON) rather than a typed/selected value. It is a config-compatible SUBSET of the Fused application's `file-upload` — identical prop NAMES/TYPES/SEMANTICS for the props it keeps (`param`, `label`, `accept`, `multiple`, `maxSizeMb`), fewer props, never extra. It is NOT a render-fidelity mapping: the app uploads to an S3/fd/gs destination and broadcasts a JSON array of `{ path, fileName }`, whereas openfused has no storage layer and instead reads files in-browser via `FileReader.readAsDataURL` and broadcasts the data URL(s) directly.
+`file-upload` is an INPUT component: a browser file picker that lets the human pick one or more local files and broadcasts their contents into the param store, where downstream nodes can read them. The author reaches for it when a widget needs user-supplied file content (an image, a CSV, JSON) rather than a typed/selected value. It is a config-compatible SUBSET of the Fused application's `file-upload` — identical prop NAMES/TYPES/SEMANTICS for the props it keeps (`param`, `label`, `accept`, `multiple`, `maxSizeMb`), fewer props, never extra. It is NOT a render-fidelity mapping: the app uploads to an S3/fd/gs destination and broadcasts a JSON array of `{ path, fileName }`, whereas fused has no storage layer and instead reads files in-browser via `FileReader.readAsDataURL` and broadcasts the data URL(s) directly.
 
 ## Expectation
 - Renders a labelled `Field` (label above) wrapping a native `<input type="file">`. `accept` is passed to the picker's `accept` attribute; `multiple` is passed to its `multiple` attribute (default `false`). The input gets a stable `id` derived from `param` (a fixed fallback when `param` is unset) so the label's `htmlFor` targets it.
@@ -15,7 +15,7 @@
 - The native input is reset (`e.target.value = ""`) after each change so re-selecting the same file fires `onChange` again.
 - Selecting zero files (empty `FileList`) is a no-op.
 - This is a display/input component rendered EVERYWHERE (no native-app-only restriction; no map tiles).
-- Deliberate behavioural subset vs the Fused app: app-only props are intentionally omitted (`destinationPath`, `sourceMode`, `contentParam`, `autoUpload`, `uploadLabel`, `disabled`, `readOnly`); a pasted app config that sets them is silently ignored here. The broadcast payload also differs by design (data URL(s) instead of the app's `{ path, fileName }` array) because openfused has no storage layer.
+- Deliberate behavioural subset vs the Fused app: app-only props are intentionally omitted (`destinationPath`, `sourceMode`, `contentParam`, `autoUpload`, `uploadLabel`, `disabled`, `readOnly`); a pasted app config that sets them is silently ignored here. The broadcast payload also differs by design (data URL(s) instead of the app's `{ path, fileName }` array) because fused has no storage layer.
 
 ## Exposed params
 

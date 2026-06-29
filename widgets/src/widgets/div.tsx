@@ -30,7 +30,7 @@ import { UNIVERSAL_PROPS } from "./_universal";
 import type { ComponentDef } from "./types";
 
 // ----------------------------------------------------------------- props schema
-// Mirrors src/openfused/widgets/schema/div.json's prop set exactly: no own
+// Mirrors src/fused/agent_core/widgets/schema/div.json's prop set exactly: no own
 // props, only the universal `style` prop. required: [].
 export const divProps = z.object({}).extend(UNIVERSAL_PROPS.shape);
 

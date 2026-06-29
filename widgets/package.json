@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "OpenFused JSON-UI render surface — the defineComponent widget catalog, the registry/renderer, the canvas, and the Python-artifact generator. Consumed as source (no npm publish).",
+  "description": "Fused JSON-UI render surface — the defineComponent widget catalog, the registry/renderer, the canvas, and the Python-artifact generator. Consumed as source (no npm publish).",
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*",

@@ -3,7 +3,7 @@
 > Dashboard metric card with formatted value.
 
 ## Why
-`metric` is a DISPLAY component: a single, large, formatted number with an optional label below it, rendered inside a `Card` — the "stat tile" of a dashboard. Authors reach for it to surface one headline figure (a count, an average, a total) either from a static literal or from a DuckDB SQL aggregate resolved server-side. It is a strict, paste-compatible SUBSET of the Fused application's `metric` component (identical prop names/types/semantics, fewer props implemented; it is the rename of the former `stat`). Where the app depends on machinery outside openfused's lightweight surface, those features are deliberately dropped (see Expectation).
+`metric` is a DISPLAY component: a single, large, formatted number with an optional label below it, rendered inside a `Card` — the "stat tile" of a dashboard. Authors reach for it to surface one headline figure (a count, an average, a total) either from a static literal or from a DuckDB SQL aggregate resolved server-side. It is a strict, paste-compatible SUBSET of the Fused application's `metric` component (identical prop names/types/semantics, fewer props implemented; it is the rename of the former `stat`). Where the app depends on machinery outside fused's lightweight surface, those features are deliberately dropped (see Expectation).
 
 ## Expectation
 - Renders a `Card` container holding the formatted value (`{prefix}{displayValue}{suffix}`) as a large number, and — only when `label` is non-empty — a smaller label beneath it. No theme/baseui; plain HTML.

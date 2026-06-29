@@ -14,7 +14,7 @@ A fan-out INPUT control for capturing a date, a time, or a local datetime from t
 - Debounce: writes are debounced 300 ms before broadcast (`debounceMs: 300`).
 - Form-ready: inside a `Form`, `useFusedParamWithForm` defers the broadcast to form submit (Form-aware twin of `useFusedParam`).
 - No `param`: works as a regular local datetime input (still two-way bound through the hook, using the `"local"` id suffix).
-- Deliberate behavioural subset vs the Fused app: openfused uses the NATIVE date/time/datetime-local input across all three modes (no popover Calendar picker), omits `step` and `readOnly`, and does NOT run `useParamSubstitution` on `defaultValue`.
+- Deliberate behavioural subset vs the Fused app: fused uses the NATIVE date/time/datetime-local input across all three modes (no popover Calendar picker), omits `step` and `readOnly`, and does NOT run `useParamSubstitution` on `defaultValue`.
 - WHERE it renders: everywhere (not a map widget; no native-app-only restriction).
 
 ## Exposed params

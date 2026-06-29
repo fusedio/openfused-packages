@@ -1,6 +1,6 @@
 // maps/basemaps.ts — no-token MapLibre basemap styles.
 //
-// OpenFused maps render with MapLibre GL and NO Mapbox token (the chosen posture,
+// Fused maps render with MapLibre GL and NO Mapbox token (the chosen posture,
 // spec/ui/json-ui.md § Component catalog / json-ui-widgets-batch1.md § Deferred:
 // maps). Each named style is a raster style backed by a free, no-token tile
 // source so a config never needs a secret:

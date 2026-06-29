@@ -4,11 +4,11 @@
 > **Runs**, and **Instructions** (prompt editor) for one agent — backed by the
 > packaged `_core.agents-management` CRUD UDFs. Moves the app's former
 > hand-built `AgentDetailPage` into a widget (the same play `task-board` made for
-> the task surface). OpenFused-owned; not governed by app parity.
+> the task surface). Fused-owned; not governed by app parity.
 
 ## Why
 
-The agent roster is a first-class OpenFused concept with packaged `_core`
+The agent roster is a first-class Fused concept with packaged `_core`
 UDFs. Rendering the per-agent interface as a widget lets the same surface be
 authored, resolved, and edited through the `{{ref}}` + executor seam instead of
 bespoke app REST — consistent with `task-board`, and reusable wherever the widget
@@ -66,7 +66,7 @@ unavailable/empty state.
 ## Notes / deferred
 
 - `agent-detail` writes through the resolve/executor seam like `task-board`; it is
-  the second OpenFused-owned widget to do so.
+  the second Fused-owned widget to do so.
 - Not yet wired: create/delete/clone/reset of agents (the widget edits an existing
   agent only). `role` is preserved on save but has no edit control (deliberately
   removed). Clearing `model` back to the adapter default isn't expressible — the

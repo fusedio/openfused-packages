@@ -12,7 +12,7 @@
 > `_core.task-management.create` (create) through the **generic event-triggered executor seam**
 > (`bridge.udfs.execute` → the host `POST /api/udf-exec` route — surfaces.md §10, the
 > same seam a `button`'s `executor` prop fires), then bumping a refresh param to re-resolve the
-> read (mutate-then-refetch). The **4th OpenFused-owned primitive** (after `button`,
+> read (mutate-then-refetch). The **4th Fused-owned primitive** (after `button`,
 > `video-review`, `canvas`) — it is NOT in the Fused application, so it breaks paste-compatibility.
 > It runs on a **control-plane consumer surface** (now external — Flow, `fusedio/flow` — where
 > `_core.*` cross-project refs resolve); only the deployed-serve bundle, which has no `_core`
@@ -29,7 +29,7 @@ node `{"type":"task-board"}`, instead of the bespoke React page. Its role is a *
 mutating display**: it reads live task rows and lets a human re-triage them (drag a card to
 change status; create a task) without a model turn.
 
-It is an **OpenFused-owned primitive**, the fourth after `button`, `video-review`, and `canvas`,
+It is an **Fused-owned primitive**, the fourth after `button`, `video-review`, and `canvas`,
 **not** governed by app parity — the Fused application has no task concept, so there is nothing
 to be paste-compatible *with*. This is a deliberate parity break, owned by `spec/ui/json-ui.md`
 § Authoring & catalog and ADR 0001 (handoff packet `adr/0001-task-board-spec-owned-primitive.md`).
@@ -40,7 +40,7 @@ the platform, not ports — see `internal-requirements.md` (collection rendering
 
 Precedent components to read alongside this spec: `metric.md` / `sql-table.md` (the
 `useDuckDbSqlQuery` `{{ref}}` read shape), `button.md` / `video-review.md` (how an
-OpenFused-owned primitive is added and how an interaction leaves the widget).
+Fused-owned primitive is added and how an interaction leaves the widget).
 
 ## Expectation
 
@@ -361,7 +361,7 @@ as a flat overrides map:
   `packages/widgets/src/widgets/task-board.tsx` (`defineComponent({component, props, description,
   hasChildren: false})` + `writesParam: true`), register it in the `componentDefs` barrel
   (`packages/widgets/src/widgets/index.ts`), and **regenerate `components.json`** (`pnpm --filter
-  @fusedio/widgets generate`) so the hard type gate (`src/openfused/widgets/validate.py` via
+  @fusedio/widgets generate`) so the hard type gate (`src/fused/agent_core/widgets/validate.py` via
   `components.json`) accepts `type:"task-board"` for free. No parallel Python list. The catalog
   count is **34** (catalog.md, overview.md, `spec/ui/json-ui.md`) — the regeneration of
   `components.json` when the `.tsx` lands is what makes the runtime type gate match these specs.

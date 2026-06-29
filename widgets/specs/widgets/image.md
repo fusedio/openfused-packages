@@ -11,7 +11,7 @@
 - **Missing `src` guard:** when `src` is falsy, renders an in-card placeholder element with `role="alert"` reading `image: missing src` — a visible placeholder, never a broken image and never a blank widget.
 - NOT data-bound: there is no `sql` prop and no `_queryId`; the component never reads result columns.
 - NOT an input: writes nothing to the param store.
-- Deliberate behavioural subset vs the Fused app: the app resolves `src` through `useMediaSrc` (signable storage paths, loading + error states, a baseui Spinner); openfused keeps the lightweight `<img src={src}>` path only. This is a CONFIG-compat mapping (same JSON props accepted), NOT a render-fidelity mapping — signable-path `src` values are passed straight to `<img>` and will only display if the URL is already directly fetchable by the browser.
+- Deliberate behavioural subset vs the Fused app: the app resolves `src` through `useMediaSrc` (signable storage paths, loading + error states, a baseui Spinner); fused keeps the lightweight `<img src={src}>` path only. This is a CONFIG-compat mapping (same JSON props accepted), NOT a render-fidelity mapping — signable-path `src` values are passed straight to `<img>` and will only display if the URL is already directly fetchable by the browser.
 - Renders everywhere (no native-app-only restriction).
 
 ## Exposed params

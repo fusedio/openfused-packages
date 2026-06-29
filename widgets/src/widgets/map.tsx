@@ -7,7 +7,7 @@
 // returning geometry; the planner synthesizes "SELECT * FROM {{udf}}" per layer and
 // the renderer paints each via MapLibre GeoJSON layers (map-layer.tsx). `param` +
 // `sendParam` emit the viewport bounds as a "west,south,east,north" string (SQL-safe;
-// the application's array form is illegal in OpenFused SQL — same key, narrowed value).
+// the application's array form is illegal in Fused SQL — same key, narrowed value).
 //
 // Thin + node-importable (the schema generator loads it): the heavy MapLibre renderer
 // lives in ../maps/* (dynamic maplibre import); the deployed bundle aliases this module

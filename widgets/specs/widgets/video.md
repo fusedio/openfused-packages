@@ -7,7 +7,7 @@
 
 ## Expectation
 - Renders a `<video>` inside a wrapper `<div>`. The wrapper defaults to `position: relative; width: 100%; overflow: hidden`, with the parsed `style` prop spread OVER those defaults (user declarations win last). The inner `<video>` is `display: block; width: 100%; maxWidth: 100%` with `objectFit` from the prop.
-- `src` is passed verbatim to the `<video src>` attribute — no resolution, signing, or refresh. This is the deliberate behavioural subset: the Fused app resolves `src` through `useMediaSrc` (signable storage paths, loading/error states, signed-URL refresh on network error); openfused keeps the lightweight plain `<video>` path with `src` set directly, so signable-path src values are passed through unchanged. CONFIG-compat, not render-fidelity.
+- `src` is passed verbatim to the `<video src>` attribute — no resolution, signing, or refresh. This is the deliberate behavioural subset: the Fused app resolves `src` through `useMediaSrc` (signable storage paths, loading/error states, signed-URL refresh on network error); fused keeps the lightweight plain `<video>` path with `src` set directly, so signable-path src values are passed through unchanged. CONFIG-compat, not render-fidelity.
 - The native `<video>` element is rendered with `controls` (default `true`), `autoPlay` (default `false`), `loop` (default `false`), `muted` (default `false`), and `objectFit` (default `"contain"`). `playsInline` is hard-coded on the element (it is not an exposed prop).
 - Empty/missing guard: a falsy `src` renders an in-card placeholder reading `video: missing src` (marked as an alert) — never a broken `<video>`; the widget is never blanked.
 - Not DATA-BOUND: no `sql` prop, reads no result columns, the resolver stamps no `_queryId`.
