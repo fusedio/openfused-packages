@@ -40,4 +40,4 @@ A display component for plotting one numeric quantity against another as a 2D po
 ## Notes
 - Built on the shared chart-card chrome and its loading/error/empty states; charting via `recharts` (`ResponsiveContainer`, `ScatterChart`, `Scatter`, `XAxis`, `YAxis`, `ZAxis`, `CartesianGrid`, `Tooltip`, `Legend`).
 - Render behaviour (not props): a built-in 10-color series palette, a default point size of 70, compact axis-tick formatting, and an inline custom tooltip.
-- `_queryId` is threaded from the node's props into `useDuckDbSqlQuery` as its query id (the openfused binding convention); `style` is read off the node's props per the org-wide css→style rename. At render time `zod` is stubbed, so every default is also applied via destructuring defaults in the component body.
+- `_queryId` is threaded from the node's props into `useDuckDbSqlQuery` as its query id (the fused binding convention); `style` is read off the node's props per the org-wide css→style rename. At render time `zod` is stubbed, so every default is also applied via destructuring defaults in the component body.

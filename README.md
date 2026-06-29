@@ -1,6 +1,6 @@
 # @fusedio shared packages
 
-Shared front-end packages used across the OpenFused (`fusedio/openfused`) and
+Shared front-end packages used across the Fused (`fusedio/openfused`) and
 Flow (`fusedio/flow`) repositories. This repo is the single source of truth and
 is consumed by both as a git submodule mounted at `packages/`.
 

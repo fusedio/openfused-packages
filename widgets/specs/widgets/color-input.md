@@ -13,7 +13,7 @@ A swatch field for picking a single color: it renders a native `<input type="col
 - `param` is OPTIONAL: when omitted, the component works as a regular **local** color input (no canvas sync). The control gets a stable `id` derived from `param` (or a local fallback when `param` is omitted).
 - The universal `style` is read off the node's props, parsed from its CSS declaration string, and applied to the `Field` wrapper.
 - NOT data-bound: there is no `sql` prop and the component reads no result columns.
-- Deliberate behavioural subset vs the Fused app: app-only machinery is intentionally out of scope — `format` (rgb/hsl/hsb), `showAlpha`, `readOnly`, and the full popover ColorPicker (area/hue/alpha/eyedropper) + color-string parsing. openfused uses the native hex input and broadcasts only the `"#rrggbb"` string.
+- Deliberate behavioural subset vs the Fused app: app-only machinery is intentionally out of scope — `format` (rgb/hsl/hsb), `showAlpha`, `readOnly`, and the full popover ColorPicker (area/hue/alpha/eyedropper) + color-string parsing. fused uses the native hex input and broadcasts only the `"#rrggbb"` string.
 - Renders everywhere (no native-app-only restriction; not a map widget).
 
 ## Exposed params

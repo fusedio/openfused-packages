@@ -3,7 +3,7 @@
 // Each component declares its OWN props with `z.object({ ... })` and then folds
 // this universal prop in via `.extend(UNIVERSAL_PROPS.shape)`. The shape here
 // mirrors the EXACT per-component JSON Schema the Python planner emits (see
-// /src/openfused/widgets/schema/*.json), so the TS-side zod schemas and the
+// /src/fused/agent_core/widgets/schema/*.json), so the TS-side zod schemas and the
 // server-side JSON Schemas stay in lockstep:
 //
 //   "style":   { "type": "string", optional, ... }      inline CSS declarations

@@ -26,7 +26,7 @@ the node onto the component.
   directly. The exhaustive authoring-side hook contract lives in
   [`internal-requirements.md`](./internal-requirements.md) §2.
 - There is **no universal `visible` prop** / conditional-render gate — the Fused app
-  has none, so OpenFused dropped it to keep configs a strict paste-compatible subset
+  has none, so Fused dropped it to keep configs a strict paste-compatible subset
   ([`internal-requirements.md`](./internal-requirements.md) §3,
   [`authoring.md`](./authoring.md)).
 

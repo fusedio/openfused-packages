@@ -8,7 +8,7 @@
 // rows flow up here, and ONE MapboxOverlay owns all the deck layers (rebuilt via
 // buildDeckLayer when any layer's data changes). `param`/`sendParam` emit the viewport
 // bounds as a "west,south,east,north" string (SQL-safe; the app's array form is illegal
-// in OpenFused SQL — same key, narrowed value).
+// in Fused SQL — same key, narrowed value).
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { IControl, Map as MLMap } from "maplibre-gl";
 import { useFusedParamWithForm, parseStyle } from "@fusedio/widget-sdk";
