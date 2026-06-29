@@ -15,7 +15,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/canvas/**/*.test.ts", "src/widgets/**/*.test.{ts,tsx}"],
+    include: ["src/*.test.ts", "src/canvas/**/*.test.ts", "src/widgets/**/*.test.{ts,tsx}"],
     // The real-browser tier runs under vitest.browser.config.ts (a real Chromium
     // via Playwright); keep its `*.browser.test.tsx` files out of this fast,
     // layout-free node run, which would crash on recharts' DOM measurement.
