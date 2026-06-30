@@ -18,10 +18,14 @@ const nameClass: Record<IdentitySize, string> = {
 export function Identity({
   name,
   size = "default",
+  subtext,
   className,
 }: {
   name: string;
   size?: IdentitySize;
+  /** Optional grey, smaller second line rendered directly under the name (e.g. an
+   * agent's underlying model in a picker). Omit for the plain avatar+name row. */
+  subtext?: string;
   className?: string;
 }) {
   return (
@@ -31,7 +35,14 @@ export function Identity({
       <Avatar size={size}>
         <AvatarFallback>{deriveInitials(name)}</AvatarFallback>
       </Avatar>
-      <span className={cn("truncate", nameClass[size])}>{name}</span>
+      {subtext ? (
+        <span className="flex min-w-0 flex-col">
+          <span className={cn("truncate leading-tight", nameClass[size])}>{name}</span>
+          <span className="truncate text-[11px] leading-tight text-muted-foreground">{subtext}</span>
+        </span>
+      ) : (
+        <span className={cn("truncate", nameClass[size])}>{name}</span>
+      )}
     </span>
   );
 }

@@ -130,6 +130,7 @@ import {
   timeAgo,
   epoch,
   toTask,
+  agentModelLabel,
   type TaskStatus,
   type Task,
 } from "./task-board-shared";
@@ -1316,6 +1317,10 @@ interface ComposerAgent {
   id: string;
   slug: string;
   name: string;
+  /** The agent's underlying model, shown as picker subtext. Nullable/absent when
+   * the roster is derived from task ids (off-host) — then the subtext degrades to
+   * "default". */
+  model?: string | null;
 }
 
 const DRAFT_KEY = "openfused:task-draft";
@@ -1633,7 +1638,7 @@ function NewTaskDialog({
                         setAssigneeOpen(false);
                       }}
                     >
-                      <Identity name={agent.name} size="sm" />
+                      <Identity name={agent.name} size="sm" subtext={agentModelLabel(agent.model)} />
                     </button>
                   ))
                 )}
@@ -2246,6 +2251,7 @@ function TaskBoard({ element }: ComponentRenderProps<TaskBoardProps>) {
           id: String(a.id ?? ""),
           slug: String(a.slug ?? a.id ?? ""),
           name: String(a.name ?? a.slug ?? a.id ?? ""),
+          model: a.model == null ? null : String(a.model),
         })),
       );
     });
