@@ -20,3 +20,12 @@ export type {
 } from "./widgets";
 
 export { RenderTree, RenderNode, type UINode } from "./render";
+
+export {
+  CodeBlock,
+  useHighlightedHtml,
+  normalizeLang,
+  CODE_LANGS,
+  type CodeBlockProps,
+} from "./components/CodeBlock";
+export { CodeEditor, type CodeEditorProps } from "./components/CodeEditor";

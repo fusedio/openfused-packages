@@ -210,6 +210,97 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
 .ofw-diff__line--meta { opacity: 0.55; font-size: 11px; }
 .ofw-diff__empty { opacity: 0.7; font-size: 12px; }
 
+/* ---------------- Code (.ofw-code) — shared CodeBlock (components/CodeBlock.tsx)
+   Wraps either shiki's highlighted output (pre.shiki) or the pre-highlight raw
+   fallback (pre.ofw-code__raw). shiki paints its own theme background onto
+   pre.shiki; we force it transparent so the code reads on the host surface and
+   supply our own translucent surface + border to match .ofw-md pre / .ofw-diff. */
+.ofw-code {
+  border: 1px solid var(--ofw-line, rgba(127, 135, 150, 0.25));
+  border-radius: var(--ofw-radius-sm);
+  background: rgba(127, 135, 150, 0.10);
+  overflow: auto;
+}
+.ofw-code pre {
+  margin: 0;
+  padding: 0.7em 0.9em;
+  overflow: auto;
+  font-family: var(--ofw-font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.ofw-code pre.shiki { background: transparent !important; }
+.ofw-code__raw { white-space: pre; color: var(--ofw-text); }
+.ofw-code__raw code { font-family: inherit; }
+
+/* Optional left line-number gutter: a CSS counter on shiki's per-line spans
+   (the documented shiki recipe — each `.line` is inline and starts on its own
+   visual line, so its `::before` lands at the line start). */
+.ofw-code--numbered pre.shiki code { counter-reset: ofw-line; }
+.ofw-code--numbered pre.shiki .line::before {
+  counter-increment: ofw-line;
+  content: counter(ofw-line);
+  display: inline-block;
+  width: 2.5ch;
+  margin-right: 1.4em;
+  text-align: right;
+  color: var(--ofw-text-faint, #5a6678);
+  user-select: none;
+}
+
+/* Editable variant (CodeEditor): a transparent <textarea> laid over the shiki
+   highlight layer. Both share identical font/size/line-height/padding so glyphs
+   align exactly; the textarea text is transparent (caret only) and the color
+   comes from the layer beneath. The textarea is in flow and auto-grows to set
+   the height; the layer fills the same box. No line-number gutter here — it
+   would offset the highlight layer from the textarea text. */
+.ofw-code--editor { max-height: 70vh; }
+.ofw-code--editor .ofw-code__editor { position: relative; }
+.ofw-code--editor .ofw-code__hl {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ofw-code--editor .ofw-code__hl pre { overflow: hidden; }
+.ofw-code--editor .ofw-code__textarea,
+.ofw-code--editor .ofw-code__hl pre {
+  margin: 0;
+  padding: 0.7em 0.9em;
+  font-family: var(--ofw-font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  tab-size: 2;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.ofw-code--editor .ofw-code__textarea {
+  position: relative;
+  display: block;
+  width: 100%;
+  /* Self-contained: don't depend on the host's box-sizing reset — without this
+     the width:100% + padding would overflow and misalign from the highlight. */
+  box-sizing: border-box;
+  min-height: 6em;
+  border: 0;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--ofw-text);
+  outline: none;
+}
+.ofw-code--editor .ofw-code__textarea::placeholder { color: var(--ofw-text-faint, #5a6678); }
+.ofw-code--editor .ofw-code__textarea::selection { background: rgba(120, 150, 200, 0.35); }
+/* When numbered, the highlight layer's `.line::before` gutter (2.5ch + 1.4em)
+   pushes the code right; pad the textarea by the same so its (transparent) text
+   and caret stay aligned with the highlighted glyphs beneath. */
+.ofw-code--editor.ofw-code--numbered .ofw-code__textarea {
+  padding-left: calc(0.9em + 2.5ch + 1.4em);
+}
+
 /* ---------------- In-card states ---------------- */
 .ofw-state {
   display: flex; align-items: center; gap: 9px;
