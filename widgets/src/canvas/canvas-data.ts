@@ -120,7 +120,12 @@ export function createCanvasRuntime(
   // 1) Seed each node's own widget defaults under that node's origin (gated like
   //    user-set values). updatedAt 0 so a real user set always supersedes.
   for (const node of nodes) {
-    const harvested = harvestInitialParams(node.widget);
+    // Seed defaults from the node's widget AND its peek body (the peek-drawer can
+    // render `node.peek` instead, so its params/queries must resolve too).
+    const harvested = {
+      ...harvestInitialParams(node.widget),
+      ...(node.peek ? harvestInitialParams(node.peek) : null),
+    };
     for (const [param, value] of Object.entries(harvested)) {
       const existing = store.state[param]?.[node.id];
       if (
@@ -147,7 +152,13 @@ export function createCanvasRuntime(
       onStopLoading: hooks.onStopLoading,
     });
 
-    const ownQids = collectQueryIds(node.widget);
+    // Include the peek body's queries (the drawer may render `node.peek`).
+    const ownQids = [
+      ...new Set([
+        ...collectQueryIds(node.widget),
+        ...collectQueryIds(node.peek),
+      ]),
+    ];
     const nodeStore = new WidgetDataStore({
       data: inputs.data,
       errors: inputs.errors,

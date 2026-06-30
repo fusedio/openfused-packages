@@ -625,12 +625,14 @@ function CanvasInner({ element }: ComponentRenderProps) {
     (n: CanvasNodeModel) => n.title || n.id.replace(/^[a-z]+:/, ""),
     [],
   );
-  // Drawer body: the node's OWN widget under its per-node bridge — the same
-  // self-contained render the fullscreen overlay uses (no host/app involvement).
+  // Drawer body: the node's richer `peek` body when present (e.g. the pipeline
+  // embeds the reference note / UDF source / widget there), else the node's own
+  // `widget`. Rendered under the node's per-node bridge — self-contained, the same
+  // render path the fullscreen overlay uses (no host/app involvement).
   const renderPeekBody = React.useCallback(
     (n: CanvasNodeModel) => (
       <FusedWidgetBridgeContext.Provider value={runtime.getNodeBridge(n.id)}>
-        <RenderNode node={n.widget as UINode} />
+        <RenderNode node={(n.peek ?? n.widget) as UINode} />
       </FusedWidgetBridgeContext.Provider>
     ),
     [runtime],
