@@ -759,7 +759,9 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
   z-index: 20;
   display: flex;
   flex-direction: column;
-  background: var(--ofw-panel, #0e131c);
+  /* Match the canvas / fullscreen-overlay base (`--ofw-bg`), not the lighter
+     `--ofw-panel`, so the drawer reads as part of the app surface. */
+  background: var(--ofw-bg, #070a0f);
   border-left: 1px solid var(--ofw-line-2, rgba(130, 160, 200, 0.2));
   /* Strong shadow does the layering work the absent backdrop would: lift the
      panel clearly off the still-lit canvas. */
