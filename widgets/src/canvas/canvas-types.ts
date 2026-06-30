@@ -307,6 +307,13 @@ export const CanvasPropsSchema = z
       .optional()
       .default("dots")
       .describe("Canvas background pattern."),
+    nodePeek: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe(
+        "When true, clicking a node opens a read-only side drawer peeking that node's artifact (instead of the node's default link navigation). Default false; the project pipeline canvas turns it on. The host (app) supplies the drawer's content via CanvasHostValue.renderNodePeek; without a host renderer the drawer falls back to the node's own widget.",
+      ),
     fitViewPadding: z
       .number()
       .optional()

@@ -737,3 +737,71 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
 }
 .ofw-chart-tooltip__name { color: var(--ofw-text-dim); }
 .ofw-chart-tooltip__value { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------------------
+ * Node peek-drawer (canvas config `nodePeek`): a right-side panel that peeks one
+ * node's artifact read-only without leaving the canvas. NO backdrop — the canvas
+ * stays interactive on the left. Slides in from the right (the global
+ * prefers-reduced-motion rule above disables the transition). z-index mirrors the
+ * fullscreen overlay (40): above the canvas, below the body-portaled menu layer.
+ * ------------------------------------------------------------------------- */
+.ofw-node-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(560px, 92vw);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--ofw-panel, #0e131c);
+  border-left: 1px solid var(--ofw-line-2, rgba(130, 160, 200, 0.2));
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.38);
+  transform: translateX(100%);
+  transition: transform 180ms ease;
+  will-change: transform;
+}
+.ofw-node-drawer[data-enter="true"] { transform: translateX(0); }
+.ofw-node-drawer__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid var(--ofw-line, rgba(130, 160, 200, 0.11));
+}
+.ofw-node-drawer__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ofw-text, #e7ecf3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ofw-node-drawer__btn {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ofw-radius-sm, 7px);
+  border: none;
+  background: transparent;
+  color: var(--ofw-text-dim, #93a0b2);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.ofw-node-drawer__btn:hover {
+  background: var(--ofw-card-hi, rgba(130, 160, 200, 0.12));
+  color: var(--ofw-text, #e7ecf3);
+}
+.ofw-node-drawer__body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}

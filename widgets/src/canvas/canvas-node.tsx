@@ -63,6 +63,21 @@ const INTERACTIVE_TYPES = new Set<string>([
   "form",
 ]);
 
+/**
+ * Controls a node-peek click must NOT hijack: clicking a button/input/etc. inside
+ * a node should drive that control, not open the peek-drawer. A plain element (or
+ * the compact name-link `<a>`, which we DO want to intercept) is not exempt.
+ */
+const PEEK_EXEMPT_SELECTOR =
+  'button, input, select, textarea, [role="button"], [contenteditable=""], [contenteditable="true"]';
+
+/** True if the click landed on (or inside) an interactive control — used to let
+ * that control's own handler run instead of opening the node peek-drawer. */
+export function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return target.closest(PEEK_EXEMPT_SELECTOR) != null;
+}
+
 /** True if the widget subtree contains any interactive control (walks children). */
 function hasInteractiveControl(widget: CanvasNodeModel["widget"]): boolean {
   let found = false;
@@ -95,6 +110,11 @@ export interface CanvasNodeData {
   loading?: boolean;
   /** Expand this node's widget to fill the viewport (set by CanvasInner). */
   onFullscreen?: (nodeId: string) => void;
+  /** Open the node peek-drawer for this node (set by CanvasInner when the canvas
+   * config has `nodePeek`). A node click opens the drawer instead of following
+   * the node's default link navigation; clicks on interactive controls are
+   * exempt (see `isInteractiveTarget`). */
+  onPeek?: (nodeId: string) => void;
   [key: string]: unknown;
 }
 
@@ -233,7 +253,7 @@ class NodeErrorBoundary extends React.Component<
 }
 
 export const CanvasNode = React.memo(function CanvasNode({ data }: NodeProps) {
-  const { node, bridge, running, loading, onFullscreen } =
+  const { node, bridge, running, loading, onFullscreen, onPeek } =
     data as unknown as CanvasNodeData;
 
   // Only nodes with an interactive control capture the pointer / opt out of
@@ -291,6 +311,20 @@ export const CanvasNode = React.memo(function CanvasNode({ data }: NodeProps) {
     [onFullscreen, node.id],
   );
 
+  // Node peek (config `nodePeek`): a click anywhere on the card — except on an
+  // interactive control — opens the peek-drawer and cancels the node's default
+  // link navigation. Capture phase so it pre-empts the compact name-link `<a>`'s
+  // own navigation even though the card itself may be pointer-events:none.
+  const handlePeekClick = React.useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (isInteractiveTarget(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onPeek?.(node.id);
+    },
+    [onPeek, node.id],
+  );
+
   // Measure whether the body content overflows its box and toggle `scrollable`.
   // The body's children resolve async (a data table / chart fills in after the
   // SQL resolves), so a ResizeObserver re-checks on every size change of the body
@@ -320,6 +354,9 @@ export const CanvasNode = React.memo(function CanvasNode({ data }: NodeProps) {
       ref={cardRef}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      // Capture phase: pre-empt the compact name-link `<a>`'s navigation so a node
+      // click opens the peek-drawer instead. Only wired when the host enabled peek.
+      onClickCapture={onPeek ? handlePeekClick : undefined}
       className="canvas-node"
       data-running={running ? "true" : undefined}
       style={{
@@ -338,7 +375,13 @@ export const CanvasNode = React.memo(function CanvasNode({ data }: NodeProps) {
         // their controls work and the canvas doesn't pan out from under them).
         // Display nodes keep pointer-events:none on purpose, so a drag/wheel
         // over them pans/zooms the CANVAS — the user is never stuck on a node.
-        ...(interactive ? { pointerEvents: "auto" } : null),
+        // When peek is on, the WHOLE card is a click target (cursor:pointer) so
+        // any node opens the drawer, not just its inner link.
+        ...(onPeek
+          ? { pointerEvents: "auto" as const, cursor: "pointer" as const }
+          : interactive
+            ? { pointerEvents: "auto" as const }
+            : null),
       }}
     >
       {/* Hidden handles so edges can attach; not interactive in view mode. */}

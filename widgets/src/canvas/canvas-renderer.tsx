@@ -16,9 +16,12 @@
 import React from "react";
 
 import {
+  FusedWidgetBridgeContext,
   useFusedWidgetBridge,
   type ComponentRenderProps,
 } from "@fusedio/widget-sdk";
+
+import { RenderNode, type UINode } from "../render";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -54,6 +57,7 @@ import { layoutWithFolders } from "./canvas-folder-layout";
 import { CanvasFullscreenOverlay } from "./canvas-fullscreen-overlay";
 import { useCanvasHost } from "./canvas-host-context";
 import { CanvasNode } from "./canvas-node";
+import { CanvasNodeDrawer } from "./canvas-node-drawer";
 import { estimateSize } from "./canvas-node-size";
 import type {
   CanvasNode as CanvasNodeModel,
@@ -343,6 +347,20 @@ function CanvasInner({ element }: ComponentRenderProps) {
     }
   }, [fullscreenNodeId, hiddenNodeIds]);
 
+  // Node peek-drawer (config `nodePeek`): which node (if any) is peeked open in
+  // the side drawer. Enabled by the canvas config; the host (pipeline) supplies
+  // the drawer content. Mirrors the fullscreen state above (clear when hidden).
+  const nodePeekEnabled = rawProps.nodePeek === true;
+  const [peekNodeId, setPeekNodeId] = React.useState<string | null>(null);
+  const openPeek = React.useCallback(
+    (nodeId: string) => setPeekNodeId(nodeId),
+    [],
+  );
+  const closePeek = React.useCallback(() => setPeekNodeId(null), []);
+  React.useEffect(() => {
+    if (peekNodeId && hiddenNodeIds.has(peekNodeId)) setPeekNodeId(null);
+  }, [peekNodeId, hiddenNodeIds]);
+
   const runtimeStoreRef = React.useRef<CanvasRuntime["store"] | null>(null);
   const runtime = React.useMemo(() => {
     const inputs: CanvasDataInputs = {
@@ -454,6 +472,10 @@ function CanvasInner({ element }: ComponentRenderProps) {
           // a name-only node has nothing to maximize. Omitting onFullscreen here
           // makes CanvasNode drop the button entirely.
           onFullscreen: host.disableNodeFullscreen ? undefined : onFullscreen,
+          // When the canvas config enables peek, a node click opens the drawer
+          // (and cancels the node's default link navigation). Off → unset, so
+          // node links behave exactly as before.
+          onPeek: nodePeekEnabled ? openPeek : undefined,
         },
         draggable: false,
         connectable: false,
@@ -469,6 +491,8 @@ function CanvasInner({ element }: ComponentRenderProps) {
       host.dataLoading,
       host.disableNodeFullscreen,
       onFullscreen,
+      nodePeekEnabled,
+      openPeek,
     ],
   );
 
@@ -583,6 +607,17 @@ function CanvasInner({ element }: ComponentRenderProps) {
         ? (laidOut.find((n) => n.id === fullscreenNodeId) ?? null)
         : null,
     [fullscreenNodeId, hiddenNodeIds, laidOut],
+  );
+
+  // The peeked node (same resolve as fullscreen). The drawer renders the host's
+  // `renderNodePeek` content, or — for a generic canvas with no host renderer —
+  // the node's own widget under its per-node bridge.
+  const peekNode = React.useMemo(
+    () =>
+      peekNodeId && !hiddenNodeIds.has(peekNodeId)
+        ? (laidOut.find((n) => n.id === peekNodeId) ?? null)
+        : null,
+    [peekNodeId, hiddenNodeIds, laidOut],
   );
 
   // --- Comments (json-ui-comments.md) ---------------------------------------
@@ -770,6 +805,33 @@ function CanvasInner({ element }: ComponentRenderProps) {
           bridge={runtime.getNodeBridge(fullscreenNode.id)}
           onClose={closeFullscreen}
         />
+      ) : null}
+      {peekNode ? (
+        <CanvasNodeDrawer
+          // A name-only overview node has no title; fall back to its id with the
+          // `type:` prefix stripped (e.g. "udf:foo" → "foo").
+          title={peekNode.title || peekNode.id.replace(/^[a-z]+:/, "")}
+          onClose={closePeek}
+          onExpand={
+            host.onNodePeekExpand
+              ? () => host.onNodePeekExpand?.(peekNode)
+              : () => {
+                  // No host expand → promote to the fullscreen overlay.
+                  setPeekNodeId(null);
+                  setFullscreenNodeId(peekNode.id);
+                }
+          }
+        >
+          {host.renderNodePeek ? (
+            host.renderNodePeek(peekNode)
+          ) : (
+            <FusedWidgetBridgeContext.Provider
+              value={runtime.getNodeBridge(peekNode.id)}
+            >
+              <RenderNode node={peekNode.widget as UINode} />
+            </FusedWidgetBridgeContext.Provider>
+          )}
+        </CanvasNodeDrawer>
       ) : null}
     </div>
   );

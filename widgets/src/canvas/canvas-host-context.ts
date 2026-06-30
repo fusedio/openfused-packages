@@ -67,6 +67,17 @@ export interface CanvasHostValue {
   /** When true, the host suppresses the comment overlay entirely (e.g. the Work
    * Products view): the canvas renderer forces its `enableComments` to false. */
   commentsDisabled?: boolean;
+  /** Host-supplied content for the node peek-drawer (config `nodePeek`). Given the
+   * clicked node, return the read-only artifact to render in the drawer body. The
+   * pipeline canvas supplies this (it fetches the artifact by stem). When absent,
+   * the drawer falls back to the node's own widget (`<RenderNode node.widget/>`)
+   * so a generic `nodePeek` canvas peeks its node body for free. */
+  renderNodePeek?: (
+    node: import("./canvas-types").CanvasNode,
+  ) => import("react").ReactNode;
+  /** The peek-drawer's expand (`⤢`) action: the host navigates to the artifact's
+   * full route. When absent, `⤢` promotes the node to the fullscreen overlay. */
+  onNodePeekExpand?: (node: import("./canvas-types").CanvasNode) => void;
 }
 
 export const CanvasHostContext = createContext<CanvasHostValue | null>(null);
