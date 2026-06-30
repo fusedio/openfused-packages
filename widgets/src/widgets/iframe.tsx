@@ -94,12 +94,18 @@ function safeIframeSrc(src: string): string | null {
 function IFrame({ element }: ComponentRenderProps<IFrameProps>) {
   const { src, title, allow } = element.props;
   const style = (element.props as { style?: string }).style;
+  // Detect the common authoring mistake: agent passed a `udf` prop instead of `src`.
+  const rawProps = element.props as Record<string, unknown>;
+  const hasUdfProp = "udf" in rawProps || "url" in rawProps || "href" in rawProps;
 
   const safeSrc = safeIframeSrc(src);
   if (safeSrc === null) {
+    const hint = hasUdfProp
+      ? `iframe does not accept a "udf", "url", or "href" prop — use src with an absolute http(s) URL. To display UDF output, use native chart/table components with a sql prop instead.`
+      : `iframe src must be an absolute http(s) URL`;
     return (
       <div className="ofw-iframe ofw-iframe-blocked" style={parseStyle(style)}>
-        iframe src must be an absolute http(s) URL
+        {hint}
       </div>
     );
   }
