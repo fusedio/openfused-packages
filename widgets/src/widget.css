@@ -767,8 +767,9 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
      panel clearly off the still-lit canvas. */
   box-shadow: -16px 0 40px rgba(0, 0, 0, 0.45);
   transform: translateX(100%);
-  /* Exit: ease-IN (accelerate off-screen). */
-  transition: transform 200ms cubic-bezier(0.4, 0, 1, 1);
+  /* Exit: ease-IN (accelerate off-screen). Same 220ms distance/duration as enter;
+     only the curve flips. */
+  transition: transform 220ms cubic-bezier(0.4, 0, 1, 1);
   will-change: transform;
   outline: none;
 }
@@ -782,7 +783,7 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-  padding: 9px 12px 9px 16px;
+  padding: 10px 12px 10px 16px;
   border-bottom: 1px solid var(--ofw-line, rgba(130, 160, 200, 0.11));
 }
 .ofw-node-drawer__title {
@@ -803,7 +804,9 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
   gap: 2px;
   flex-shrink: 0;
   padding-left: 8px;
-  border-left: 1px solid var(--ofw-line, rgba(130, 160, 200, 0.11));
+  /* --ofw-line (0.11α) is near-invisible on the darker --ofw-bg; use --ofw-line-2
+     so the ⤢/✕ pair visibly separates from the title. */
+  border-left: 1px solid var(--ofw-line-2, rgba(130, 160, 200, 0.2));
 }
 .ofw-node-drawer__btn {
   display: flex;
@@ -842,6 +845,14 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
   flex-direction: column;
   min-height: 0;
   animation: ofw-drawer-fade 120ms ease-out;
+}
+/* The peek body renders source as a PLAIN markdown code fence (shiki is app-only).
+ * Wrap long lines so they terminate inside the 16px gutter instead of clipping
+ * mid-glyph at the panel border — there is no column alignment to preserve, and
+ * horizontal scroll inside a ~50%-width drawer is a poor read. */
+.ofw-node-drawer__content .ofw-md pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 @keyframes ofw-drawer-fade {
   from { opacity: 0; }

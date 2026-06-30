@@ -27,9 +27,9 @@ import React from "react";
 
 import type { CanvasNode as CanvasNodeModel } from "./canvas-types";
 
-// Slightly longer than the 200ms slide so the unmount lands after it visually
+// Slightly longer than the 220ms slide so the unmount lands after it visually
 // completes; also the reduced-motion fallback (no transitionend there).
-const EXIT_MS = 240;
+const EXIT_MS = 260;
 
 function CloseIcon({ size = 16 }: { size?: number }) {
   return (
