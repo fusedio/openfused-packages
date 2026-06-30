@@ -25,8 +25,10 @@ unavailable/empty state.
 
 - **Read (resolve plane, one `_queryId`)** — `props.sql` default
   `SELECT * FROM {{_core.agents-management.read?slug=$agentSlug}}` returns the one
-  agent row (id, slug, name, title, role, description, adapter, model, prompt,
-  createdAt). `$agentSlug` is host-bound as a resolve **param** (from the
+  agent row (id, slug, name, title, role, description, adapter, model, effort,
+  prompt, createdAt). `effort` is a required enum (`low|medium|high|xhigh|max`,
+  default `high`) — a missing/unknown value coerces to `high`. `$agentSlug` is
+  host-bound as a resolve **param** (from the
   `/agents/:slug` route) — passed as a `$param`, NOT interpolated into the ref, so a
   slug with ref-grammar chars can't break parsing. The upstream `read` UDF is
   upstream-owned and takes no refresh kwarg; the widget consumes it as-is.
@@ -37,7 +39,7 @@ unavailable/empty state.
   to a single-node widget, so runs ride the executor.
 - **Save (executor write, mutate-then-reflect)** — Overview Save and Instructions
   Save fire `bridge.udfs.execute("_core.agents-management.update", {id, name, title,
-  role, description, adapter, model, prompt})`. The `update` UDF **returns the
+  role, description, adapter, model, effort, prompt})`. The `update` UDF **returns the
   patched record**, which the widget reflects into local state — the view updates
   with no re-resolve (the upstream `read` has no refresh kwarg). A fresh resolve (a
   new agent / navigation) supersedes the local copy; a failed write surfaces inline
@@ -55,11 +57,13 @@ unavailable/empty state.
 ## Tabs
 
 - **Overview** — editable name / title / description / adapter (dropdown from
-  `adapters`) / model; on an adapter change the model resets to that adapter's
-  `default: true` model (else empty, the "default" option). Save persists via
-  `_core.agents-management.update`. Read-only stats grid: Adapter, Model, Runs count
-  (from the Runs read), Created (from the row). `role` is **not** editable (the
-  control was removed) but is preserved on save.
+  `adapters`) / model / effort; on an adapter change the model resets to that
+  adapter's `default: true` model (else empty, the "default" option). Effort is a
+  fixed dropdown over `low|medium|high|xhigh|max` (default `high`), mirroring the
+  model select. Save persists via `_core.agents-management.update` (sending
+  `effort` alongside adapter/model). Read-only stats grid: Adapter, Model, Effort,
+  Runs count (from the Runs read), Created (from the row). `role` is **not** editable
+  (the control was removed) but is preserved on save.
 - **Runs** — the agent's runs (filtered by `agentId`), each linking to its task.
 - **Instructions** — the prompt editor (a `Textarea`); Save persists the prompt.
 
