@@ -345,13 +345,17 @@ function passthroughResult(
  * @param viewState Collapse state, sort, aggregate specs.
  */
 export function buildGroupedRows(
-  rows: Record<string, unknown>[],
+  inputRows: ReadonlyArray<Record<string, unknown>>,
   config: GroupingConfig,
   viewState: GroupingViewState,
 ): GroupedResult {
-  if (rows.length === 0) {
+  if (inputRows.length === 0) {
     return { rows: [], meta: [], keys: [] };
   }
+
+  // Copy to a mutable array once; the engine never mutates leaf rows but its
+  // internal helpers operate on mutable Record arrays.
+  const rows = [...inputRows];
 
   if (isGroupByConfig(config)) {
     return buildGroupByRows(rows, config, viewState);
