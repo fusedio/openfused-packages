@@ -70,6 +70,11 @@ import {
 import { DataTable } from "@kit";
 
 import { UNIVERSAL_PROPS } from "./_universal";
+import {
+  buildGroupedRows,
+  type GroupingConfig,
+  type Aggregate,
+} from "./sql-table-grouping";
 import type { ComponentDef } from "./types";
 import { Card, SkeletonState, ErrorState, EmptyState } from "../components/card";
 
@@ -119,6 +124,30 @@ export const sqlTableProps = z
       .describe(
         "Column whose value identifies a selected row (the values written into selectionParam). Requires selectionParam.",
       ),
+    groupBy: z
+      .union([z.string(), z.array(z.string())])
+      .optional()
+      .describe(
+        "GROUP-BY-COLUMN mode: one or more result columns to group rows under collapsible headers (nested when an array of >1 column). Each distinct value combo becomes an expandable synthetic header row; data rows nest beneath. The named column(s) must exist in the SQL result. Mutually exclusive with idColumn/parentColumn.",
+      ),
+    idColumn: z
+      .string()
+      .optional()
+      .describe(
+        "MASTER-DETAIL (tree) mode: the result column holding each row's unique id. Requires parentColumn (both must be set). Rows whose parentColumn is null/empty/unmatched become roots; others nest under their parent. The named columns must exist in the SQL result. Mutually exclusive with groupBy.",
+      ),
+    parentColumn: z
+      .string()
+      .optional()
+      .describe(
+        "MASTER-DETAIL (tree) mode: the result column referencing a parent row's idColumn value. Requires idColumn (both must be set). The named columns must exist in the SQL result.",
+      ),
+    aggregates: z
+      .record(z.string(), z.enum(["sum", "count", "avg"]))
+      .optional()
+      .describe(
+        "GROUP-BY-COLUMN mode only: per-column rollup shown on the synthetic header rows, summed over that group's descendant leaf rows (sum/avg coerce values to numbers; count counts leaves). Keys must be result columns. Ignored in master-detail mode.",
+      ),
   })
   .extend(UNIVERSAL_PROPS.shape);
 
@@ -142,8 +171,19 @@ function renderCell(value: unknown): string {
 
 // -------------------------------------------------------------------- component
 function SqlTable({ element }: ComponentRenderProps<SqlTableProps>) {
-  const { sql, title, sortable, filterable, maxRows, selectionParam, selectionColumn } =
-    element.props;
+  const {
+    sql,
+    title,
+    sortable,
+    filterable,
+    maxRows,
+    selectionParam,
+    selectionColumn,
+    groupBy,
+    idColumn,
+    parentColumn,
+    aggregates,
+  } = element.props;
   const style = (element.props as { style?: string }).style;
   const queryId = (element.props as { _queryId?: string })._queryId;
 
@@ -166,6 +206,20 @@ function SqlTable({ element }: ComponentRenderProps<SqlTableProps>) {
   const [sortKey, setSortKey] = React.useState<string | null>(null);
   const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc");
   const [filters, setFilters] = React.useState<Record<string, string>>({});
+  // Collapse view-state for grouping (empty = everything expanded by default).
+  // The widget owns this and the engine reads it; toggleGroup flips one key.
+  const [collapsedKeys, setCollapsedKeys] = React.useState<Set<string>>(
+    () => new Set(),
+  );
+  function toggleGroup(key: string) {
+    if (key === "") return; // leaf rows carry no group key
+    setCollapsedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   // Row selection (spec/ui/json-ui.md § Actions & selection): active only when
   // BOTH selectionParam and selectionColumn are set. The param store holds the
@@ -211,7 +265,12 @@ function SqlTable({ element }: ComponentRenderProps<SqlTableProps>) {
     [columns, rows],
   );
 
-  const viewRows = React.useMemo(() => {
+  // Filter and sort are split into two memos so the grouping path can consume
+  // the FILTERED rows without the global sort applied — the grouping engine owns
+  // within-group sort, and sorting twice (here AND in the engine) would scramble
+  // the hierarchy. The ungrouped path keeps the original filter-THEN-sort
+  // behavior by composing `viewRows` from `filteredRows` + the global sort.
+  const filteredRows = React.useMemo(() => {
     let out = rows as ReadonlyArray<Record<string, unknown>>;
 
     if (isFilterable) {
@@ -224,6 +283,12 @@ function SqlTable({ element }: ComponentRenderProps<SqlTableProps>) {
         );
       }
     }
+
+    return out;
+  }, [rows, isFilterable, filters]);
+
+  const viewRows = React.useMemo(() => {
+    let out = filteredRows;
 
     if (isSortable && sortKey !== null) {
       const sorted = [...out];
@@ -244,7 +309,48 @@ function SqlTable({ element }: ComponentRenderProps<SqlTableProps>) {
     }
 
     return out;
-  }, [rows, isFilterable, filters, isSortable, sortKey, sortDir]);
+  }, [filteredRows, isSortable, sortKey, sortDir]);
+
+  // Derive the grouping config from props: group-by-column when groupBy is set
+  // (string normalized to a one-element array), master-detail when BOTH idColumn
+  // and parentColumn are non-empty. groupBy takes precedence if (mis)configured
+  // with both. null = ungrouped (flat) rendering.
+  const groupConfig = React.useMemo<GroupingConfig | null>(() => {
+    const cols =
+      typeof groupBy === "string"
+        ? groupBy !== ""
+          ? [groupBy]
+          : []
+        : Array.isArray(groupBy)
+        ? groupBy.filter((c) => c !== "")
+        : [];
+    if (cols.length > 0) return { groupBy: cols };
+    if (
+      typeof idColumn === "string" &&
+      idColumn !== "" &&
+      typeof parentColumn === "string" &&
+      parentColumn !== ""
+    ) {
+      return { idColumn, parentColumn };
+    }
+    return null;
+  }, [groupBy, idColumn, parentColumn]);
+
+  // When grouping is active, the engine consumes the FILTERED rows (not the
+  // globally-sorted viewRows) and owns within-group sort + collapse + aggregates.
+  const grouped = React.useMemo(
+    () =>
+      groupConfig === null
+        ? null
+        : buildGroupedRows(filteredRows, groupConfig, {
+            collapsedKeys,
+            sortKey,
+            sortDir,
+            sortable: isSortable,
+            aggregates: aggregates as Record<string, Aggregate> | undefined,
+          }),
+    [groupConfig, filteredRows, collapsedKeys, sortKey, sortDir, isSortable, aggregates],
+  );
 
   function toggleSort(col: string) {
     if (!isSortable) return;
@@ -272,7 +378,11 @@ function SqlTable({ element }: ComponentRenderProps<SqlTableProps>) {
     body = (
       <DataTable
         columns={cols}
-        rows={viewRows}
+        rows={grouped ? grouped.rows : viewRows}
+        rowMeta={grouped ? grouped.meta : undefined}
+        onToggleRow={
+          grouped ? (i) => toggleGroup(grouped.keys[i]) : undefined
+        }
         renderCell={renderCell}
         sortable={isSortable}
         sortKey={sortKey}

@@ -43,7 +43,7 @@ the contract — see the linked per-widget spec for the full prop schema.
 | [`video`](./widgets/video.md) | video player from a URL / data URL | `src`, `poster`, `controls`, `autoplay`, `loop`, `muted` | no |
 | [`html`](./widgets/html.md) | raw-HTML escape hatch (**scripts execute** in the page DOM) | `value` | no |
 | [`iframe`](./widgets/iframe.md) | sandboxed embed of a page or HTML-returning UDF (`src` must be absolute http(s)) | `src`, `title`, `allow` | no |
-| [`sql-table`](./widgets/sql-table.md) | table rendered from a query | `sql`, `title`, `sortable`, `filterable`, `maxRows` | yes |
+| [`sql-table`](./widgets/sql-table.md) | table rendered from a query | `sql`, `title`, `sortable`, `filterable`, `maxRows`, `groupBy` (or `idColumn`/`parentColumn` for master-detail) | yes |
 
 ### Charts (read **fixed columns** from the query result)
 
