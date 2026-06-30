@@ -619,6 +619,37 @@ function CanvasInner({ element }: ComponentRenderProps) {
         : null,
     [peekNodeId, hiddenNodeIds, laidOut],
   );
+  // A name-only overview node has no title; fall back to its id with the `type:`
+  // prefix stripped (e.g. "udf:foo" → "foo").
+  const peekTitle = React.useCallback(
+    (n: CanvasNodeModel) => n.title || n.id.replace(/^[a-z]+:/, ""),
+    [],
+  );
+  // Drawer body: the host's read-only artifact, or — for a generic canvas with no
+  // host renderer — the node's own widget under its per-node bridge.
+  const renderPeekBody = React.useCallback(
+    (n: CanvasNodeModel) => {
+      if (host.renderNodePeek) return host.renderNodePeek(n);
+      return (
+        <FusedWidgetBridgeContext.Provider value={runtime.getNodeBridge(n.id)}>
+          <RenderNode node={n.widget as UINode} />
+        </FusedWidgetBridgeContext.Provider>
+      );
+    },
+    [host, runtime],
+  );
+  // `⤢`: the host navigates to the artifact's full route; with no host handler,
+  // promote the node to the fullscreen overlay.
+  const onPeekExpand = React.useCallback(
+    (n: CanvasNodeModel) => {
+      if (host.onNodePeekExpand) host.onNodePeekExpand(n);
+      else {
+        setPeekNodeId(null);
+        setFullscreenNodeId(n.id);
+      }
+    },
+    [host],
+  );
 
   // --- Comments (json-ui-comments.md) ---------------------------------------
   // `enableComments` gates the whole overlay. ON BY DEFAULT — set
@@ -806,33 +837,14 @@ function CanvasInner({ element }: ComponentRenderProps) {
           onClose={closeFullscreen}
         />
       ) : null}
-      {peekNode ? (
-        <CanvasNodeDrawer
-          // A name-only overview node has no title; fall back to its id with the
-          // `type:` prefix stripped (e.g. "udf:foo" → "foo").
-          title={peekNode.title || peekNode.id.replace(/^[a-z]+:/, "")}
-          onClose={closePeek}
-          onExpand={
-            host.onNodePeekExpand
-              ? () => host.onNodePeekExpand?.(peekNode)
-              : () => {
-                  // No host expand → promote to the fullscreen overlay.
-                  setPeekNodeId(null);
-                  setFullscreenNodeId(peekNode.id);
-                }
-          }
-        >
-          {host.renderNodePeek ? (
-            host.renderNodePeek(peekNode)
-          ) : (
-            <FusedWidgetBridgeContext.Provider
-              value={runtime.getNodeBridge(peekNode.id)}
-            >
-              <RenderNode node={peekNode.widget as UINode} />
-            </FusedWidgetBridgeContext.Provider>
-          )}
-        </CanvasNodeDrawer>
-      ) : null}
+      {/* Always mounted so it can slide OUT on close; renders null when no node. */}
+      <CanvasNodeDrawer
+        node={peekNode}
+        title={peekTitle}
+        renderBody={renderPeekBody}
+        onClose={closePeek}
+        onExpand={onPeekExpand}
+      />
     </div>
   );
 }
