@@ -625,31 +625,21 @@ function CanvasInner({ element }: ComponentRenderProps) {
     (n: CanvasNodeModel) => n.title || n.id.replace(/^[a-z]+:/, ""),
     [],
   );
-  // Drawer body: the host's read-only artifact, or — for a generic canvas with no
-  // host renderer — the node's own widget under its per-node bridge.
+  // Drawer body: the node's OWN widget under its per-node bridge — the same
+  // self-contained render the fullscreen overlay uses (no host/app involvement).
   const renderPeekBody = React.useCallback(
-    (n: CanvasNodeModel) => {
-      if (host.renderNodePeek) return host.renderNodePeek(n);
-      return (
-        <FusedWidgetBridgeContext.Provider value={runtime.getNodeBridge(n.id)}>
-          <RenderNode node={n.widget as UINode} />
-        </FusedWidgetBridgeContext.Provider>
-      );
-    },
-    [host, runtime],
+    (n: CanvasNodeModel) => (
+      <FusedWidgetBridgeContext.Provider value={runtime.getNodeBridge(n.id)}>
+        <RenderNode node={n.widget as UINode} />
+      </FusedWidgetBridgeContext.Provider>
+    ),
+    [runtime],
   );
-  // `⤢`: the host navigates to the artifact's full route; with no host handler,
-  // promote the node to the fullscreen overlay.
-  const onPeekExpand = React.useCallback(
-    (n: CanvasNodeModel) => {
-      if (host.onNodePeekExpand) host.onNodePeekExpand(n);
-      else {
-        setPeekNodeId(null);
-        setFullscreenNodeId(n.id);
-      }
-    },
-    [host],
-  );
+  // `⤢`: promote the peeked node to the full-viewport fullscreen overlay.
+  const onPeekExpand = React.useCallback((n: CanvasNodeModel) => {
+    setPeekNodeId(null);
+    setFullscreenNodeId(n.id);
+  }, []);
 
   // --- Comments (json-ui-comments.md) ---------------------------------------
   // `enableComments` gates the whole overlay. ON BY DEFAULT — set

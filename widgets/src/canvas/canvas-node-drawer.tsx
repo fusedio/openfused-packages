@@ -6,9 +6,9 @@
  * the drawer re-targets as the user clicks node to node.
  *
  * Chrome only: the body content is supplied by the caller (`renderBody(node)` —
- * the host's `renderNodePeek` output, or a default `RenderNode` of the node's own
- * widget). Rendered via createPortal to document.body so it escapes the ReactFlow
- * transform and the node card's `overflow-hidden`.
+ * the node's own widget under its per-node bridge). Rendered IN PLACE as a child
+ * of the canvas surface (`position:absolute`, not a body portal), so the panel is
+ * bounded to the canvas widget's own box — it belongs to the widget, not the page.
  *
  * Lifecycle (owned here so the panel animates BOTH ways):
  *   - `node` non-null → mount + slide IN (ease-out).
@@ -24,7 +24,6 @@
  * straight through. Close with `✕`, Esc, or by clicking a different node.
  */
 import React from "react";
-import { createPortal } from "react-dom";
 
 import type { CanvasNode as CanvasNodeModel } from "./canvas-types";
 
@@ -140,17 +139,16 @@ export function CanvasNodeDrawer({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [shown, onClose]);
 
-  return createPortal(
-    shown ? (
-      <aside
-        ref={panelRef}
-        tabIndex={-1}
-        className="ofw-node-drawer"
-        data-enter={entered ? "true" : undefined}
-        role="dialog"
-        aria-modal="false"
-        aria-label={title(shown) || "Node"}
-      >
+  return shown ? (
+    <aside
+      ref={panelRef}
+      tabIndex={-1}
+      className="ofw-node-drawer"
+      data-enter={entered ? "true" : undefined}
+      role="dialog"
+      aria-modal="false"
+      aria-label={title(shown) || "Node"}
+    >
         <div className="ofw-node-drawer__header">
           <div className="ofw-node-drawer__title" title={title(shown)}>
             {title(shown) || "Node"}
@@ -186,9 +184,7 @@ export function CanvasNodeDrawer({
           </div>
         </div>
       </aside>
-    ) : null,
-    document.body,
-  );
+  ) : null;
 }
 
 CanvasNodeDrawer.displayName = "CanvasNodeDrawer";

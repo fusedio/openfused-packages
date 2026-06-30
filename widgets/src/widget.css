@@ -746,12 +746,17 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
  * fullscreen overlay (40): above the canvas, below the body-portaled menu layer.
  * ------------------------------------------------------------------------- */
 .ofw-node-drawer {
-  position: fixed;
+  /* Absolute within the canvas surface (`.canvas-surface` is position:relative),
+     so the panel is bounded to the canvas widget's own box — it belongs to the
+     widget, not the viewport. */
+  position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(560px, 92vw);
-  z-index: 40;
+  width: min(50%, 560px);
+  /* Above the ReactFlow pane + its controls/comment overlay (all ≤ ~5), below a
+     body-portaled fullscreen overlay (40). */
+  z-index: 20;
   display: flex;
   flex-direction: column;
   background: var(--ofw-panel, #0e131c);
