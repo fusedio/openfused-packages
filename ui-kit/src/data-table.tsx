@@ -14,7 +14,15 @@
 // This is the `DataTable` primitive adopted by the `sql-table` widget per
 // spec/ui/ui-architecture.md §6.2 (dumb control in ui-kit; the widget keeps the
 // defineComponent + SDK hooks as a thin binding wrapper).
+//
+// Optional grouped-row affordance: when the consumer passes `rowMeta` (one entry
+// per row, by index), the first column gets a depth-proportional indent and an
+// expand/collapse chevron for expandable rows, and expandable (group/parent) rows
+// are rendered non-selectable. With `rowMeta` absent the table renders exactly as
+// the flat, ungrouped primitive it has always been — the dumb-primitive contract
+// is unchanged; the consumer still owns all (collapse) view-state.
 
+import { ChevronDown, ChevronRight } from "./icons"
 import { cn } from "./cn"
 import { Input } from "./input"
 
@@ -52,6 +60,17 @@ export interface DataTableProps {
   /** Called with the row when a selectable row is clicked. */
   onRowClick?: (row: Record<string, unknown>) => void
 
+  // ---- grouped rows (consumer-owned view state; optional) ----
+  /**
+   * Per-row display metadata, aligned to `rows` by index. When present, the
+   * first column is indented by `depth` and expandable rows show a collapse
+   * chevron; expandable rows are rendered non-selectable. Absent ⇒ flat
+   * rendering (the original, unchanged behavior).
+   */
+  rowMeta?: ReadonlyArray<{ depth: number; expandable: boolean; expanded: boolean }>
+  /** Called with the row index when a row's collapse chevron is clicked. */
+  onToggleRow?: (index: number) => void
+
   className?: string
 }
 
@@ -73,6 +92,8 @@ export function DataTable({
   selectable = false,
   isRowSelected,
   onRowClick,
+  rowMeta,
+  onToggleRow,
   className,
 }: DataTableProps) {
   return (
@@ -133,25 +154,60 @@ export function DataTable({
         </thead>
         <tbody>
           {rows.map((row, ri) => {
-            const selected = selectable && !!isRowSelected?.(row)
+            const meta = rowMeta?.[ri]
+            // Expandable (group/parent) rows are never selectable; only leaf
+            // rows keep the original selection behavior.
+            const rowSelectable = selectable && !meta?.expandable
+            const selected = rowSelectable && !!isRowSelected?.(row)
             return (
               <tr
                 key={ri}
-                onClick={selectable ? () => onRowClick?.(row) : undefined}
-                aria-selected={selectable ? selected : undefined}
+                onClick={rowSelectable ? () => onRowClick?.(row) : undefined}
+                aria-selected={rowSelectable ? selected : undefined}
                 className={cn(
                   "transition-colors",
                   "even:bg-muted/30 hover:bg-accent/50",
-                  selectable && "cursor-pointer select-none",
+                  rowSelectable && "cursor-pointer select-none",
                   selected && "bg-primary/15 hover:bg-primary/15",
                 )}
               >
-                {columns.map((col) => (
+                {columns.map((col, ci) => (
                   <td
                     key={col}
                     className="whitespace-nowrap border-b border-border px-3 py-2 font-mono tabular-nums text-foreground"
                   >
-                    {renderCell(row[col])}
+                    {ci === 0 && meta ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span
+                          aria-hidden
+                          style={{ width: meta.depth * 16 }}
+                          className="inline-block shrink-0"
+                        />
+                        {meta.expandable ? (
+                          <button
+                            type="button"
+                            aria-expanded={meta.expanded}
+                            aria-label={meta.expanded ? "Collapse row" : "Expand row"}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onToggleRow?.(ri)
+                            }}
+                            className="inline-flex cursor-pointer items-center border-0 bg-transparent p-0"
+                          >
+                            {meta.expanded ? (
+                              <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                            )}
+                          </button>
+                        ) : (
+                          <span aria-hidden className="inline-block size-4 shrink-0" />
+                        )}
+                        {renderCell(row[col])}
+                      </span>
+                    ) : (
+                      renderCell(row[col])
+                    )}
                   </td>
                 ))}
               </tr>
