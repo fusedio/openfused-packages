@@ -42,7 +42,7 @@ the contract — see the linked per-widget spec for the full prop schema.
 | [`image`](./widgets/image.md) | image from a URL / data URL / signable storage path | `src`, `alt`, `objectFit` | no |
 | [`video`](./widgets/video.md) | video player from a URL / data URL | `src`, `poster`, `controls`, `autoplay`, `loop`, `muted` | no |
 | [`html`](./widgets/html.md) | raw-HTML escape hatch (**scripts execute** in the page DOM) | `value` | no |
-| [`iframe`](./widgets/iframe.md) | sandboxed embed of a page or HTML-returning UDF (`src` must be absolute http(s)) | `src`, `title`, `allow` | no |
+| [`iframe`](./widgets/iframe.md) | sandboxed embed of an **external page** — `src` must be an absolute http(s) URL; **cannot call local UDFs** (use native chart/table components with `sql` for that) | `src`, `title`, `allow` | no |
 | [`sql-table`](./widgets/sql-table.md) | table rendered from a query | `sql`, `title`, `sortable`, `filterable`, `maxRows` | yes |
 
 ### Charts (read **fixed columns** from the query result)

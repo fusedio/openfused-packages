@@ -1,9 +1,34 @@
 # `iframe`
 
-> Embed a web page or HTML-returning UDF in an iframe using http(s) URLs, $param URL templates, or {{udf}} placeholders.
+> Embed an **external web page** (absolute http/https URL) in an iframe. `iframe` cannot call a local UDF — it only loads URLs.
 
 ## Why
-`iframe` embeds an external web page (or the HTML output of a UDF) inside the widget canvas. An author reaches for it to surface an existing dashboard, doc, or HTML-returning endpoint without re-implementing it as native widgets. Its role is **display** (a non-interactive embed surface, no params). It is a strict, paste-compatible **subset of the Fused application's `iframe` component**: identical prop names/types/semantics, fewer props.
+`iframe` embeds an external web page inside the widget canvas. An author reaches for it to surface an existing deployed dashboard, doc, or HTTP endpoint without re-implementing it as native widgets. Its role is **display** (a non-interactive embed surface, no params). It is a strict, paste-compatible **subset of the Fused application's `iframe` component**: identical prop names/types/semantics, fewer props.
+
+## ❌ Common mistake — do not use `iframe` to display a local UDF's output
+
+`iframe` **cannot call a local UDF**. There is no `udf` prop. Passing `"udf": "my_udf"` is silently ignored and the missing `src` will render an error:
+
+```json
+// ❌ WRONG — "udf" is not a valid prop; this always shows an error placeholder
+{ "type": "iframe", "props": { "udf": "my_udf" } }
+
+// ❌ ALSO WRONG — {{udf}} placeholders are not resolved locally; same error
+{ "type": "iframe", "props": { "src": "{{my_udf}}" } }
+```
+
+**✅ To display data from a local UDF, use native chart/table components with `sql`:**
+
+```json
+{ "type": "bar-chart", "props": { "sql": "SELECT label, value FROM {{my_udf}}" } }
+{ "type": "sql-table", "props": { "sql": "SELECT * FROM {{my_udf}} LIMIT 100" } }
+```
+
+**✅ To embed HTML produced by a UDF**, deploy the UDF to Fused first and use its deployed URL:
+
+```json
+{ "type": "iframe", "props": { "src": "https://app.fused.io/server/default/udf/my_udf" } }
+```
 
 ## Expectation
 - Renders a single `<iframe>` element sized to fill its container (`width: 100%`, `height: 100%`, no border, block display), with the author's parsed `style` merged on top.
