@@ -186,6 +186,39 @@ data-resolve; this section governs the in-card display widgets.
 `SkeletonState` is a helper component, not a renderable json-ui `type`, so adding or
 changing it does **not** require regenerating `components.json`.
 
+## 5b. Shared code display & edit (`CodeBlock` / `CodeEditor`)
+
+Two presentational helpers render source code with one consistent look across
+the consuming app's code surfaces (UDF source, Explorer file previews, config
+snippets). They live here so they can be shared, but are **app-facing only** —
+NO `src/widgets/*` module imports them, so shiki never enters the frozen
+`widget.html` bundle (the deployed serve plane). The widget-import guard
+(`scripts/check-widget-imports.mjs`) enforces that boundary; keeping these out of
+the widget render path respects its intent (no heavy deps in the bundle).
+
+- **`CodeBlock`** (`components/CodeBlock.tsx`) — read-only highlighted code.
+  Highlights with **shiki** (the `github-dark-default` theme, the JS regex
+  engine — no wasm fetch) through a shared singleton highlighter; an optional
+  left line-number gutter; and a plain-monospace `<pre>` fallback shown until
+  the highlighter resolves, for unknown languages, and on error (never blank).
+  `normalizeLang` maps a file extension, filename, or language name to a grammar
+  id (null → no highlight).
+- **`CodeEditor`** (`components/CodeEditor.tsx`) — the editable counterpart: a
+  transparent `<textarea>` laid exactly over the same highlight layer (the
+  react-simple-code-editor technique) so edits show live highlighting, with the
+  gutter-matched padding that keeps the caret aligned when numbered. It is the
+  *edit surface only* — the host owns save/concurrency (in flow via
+  `InlineEditor`'s `renderEdit` hook, `spec/app/write-path.md` §1.5).
+
+**shiki is imported lazily, inside the highlight load — never at module load** —
+so even the app bundles it as a code-split chunk, and importing these modules
+under node/tsx (the catalog generator) never pulls in the highlighter or its
+grammars. Once loaded, `codeToHtml` is synchronous, so the highlight is computed
+in render from the current `code` (never a stale prior highlight). Styling lives
+in `widget.css` under `.ofw-code` (loaded globally by the host). Like
+`SkeletonState`, these are helper components, **not** renderable json-ui
+`type`s, so they never affect `components.json`.
+
 ## 6. Host render path (NOT owned here)
 
 The **consumer** flow — fetch the raw config, POST it once (no `only`) to the
