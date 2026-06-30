@@ -17,6 +17,22 @@
 - Deliberate app subsets (paste without error, simply ignored): the AI-host props (`aiBuilderMode`, `aiPanel`, `showEditor`, `editorPosition`, `editorCollapsed`, `editorHeight`) are NOT reproduced; the legacy fused `limit` prop is removed (replaced by `maxRows`). The universal `css` is read off `style`.
 - **Where:** renders everywhere (no native-app restriction).
 
+## Grouping
+Rows can be organised into a collapsible hierarchy driven entirely by **designated columns of the single SQL result** (no second query). Two **mutually-exclusive** modes:
+
+- **Group-by-column** (`groupBy`): a column name, or an array of names for nested grouping. The widget synthesises a **header row per distinct value combo** with the group value placed in the group column; the matching data rows nest beneath it. An optional `aggregates` map (column → `sum` / `count` / `avg`) computes a rollup shown on each header row over **that header's descendant leaf rows** (`sum`/`avg` coerce values to numbers; `count` counts leaves); columns that are neither a group column nor an aggregate render **blank** on header rows. The named columns must exist in the SQL result.
+- **Parent/child master-detail** (`idColumn` + `parentColumn`, both required together): an adjacency list over the result rows. **Real data rows act as headers** — a row referenced as a parent becomes an expandable parent of the rows whose `parentColumn` matches its `idColumn`, to arbitrary nesting depth. A row whose `parentColumn` is null, empty, or points at no existing id is a **root**. Self-referential / cyclic parents are made roots and never loop.
+
+`groupBy` takes **priority** if both modes are (mis)configured at once. With neither prop set the widget is ungrouped (see Expectation).
+
+Behaviour:
+- Groups render **expanded by default**. Each header / parent row carries a chevron that toggles collapse; a collapsed group hides its entire subtree. **Collapse state is local widget view-state — it is NOT a param** and is never broadcast.
+- **Sorting operates within groups**: the `sortable` sort applies to sibling rows under each parent, and the hierarchy (header → its leaves) is preserved — rows are never globally re-flattened across groups.
+- **Filtering applies to the leaf/data rows before grouping** (the engine does not prune the resulting tree). In **group-by-column** mode headers are derived only from the rows that survive the filter, so no empty synthesized groups arise. In **master-detail** mode a row is shown whenever it survives the filter: a surviving parent whose descendants were all filtered out still appears (a header with no visible children), and a surviving row whose parent was filtered out is promoted to a root (consistent with the unmatched-parent → root rule).
+- Header / parent rows are **not row-selectable** (the selection facet stays on leaf rows); collapse and selection are independent.
+
+**Backward-compatibility:** with no grouping prop set the widget behaves exactly as the ungrouped spec above. Grouping adds no param and no input facet — `components.json` is unchanged and `isInput` stays `false`.
+
 ## Exposed params
 
 | prop | type | default | description |
@@ -28,6 +44,10 @@
 | `maxRows` | `number` (int, positive) | `500` | Safety LIMIT appended when the SQL has no LIMIT clause. |
 | `selectionParam` | `string` | — | Param name that receives the selection as an ARRAY of selected rows' `selectionColumn` values. Requires `selectionColumn`; clicking a row toggles it (multi-select). Feedback for the agent — never reference an array param in SQL. |
 | `selectionColumn` | `string` | — | Column whose value identifies a selected row (the values written into `selectionParam`). Requires `selectionParam`. |
+| `groupBy` | `string \| string[]` | — | Group-by-column mode: one or more result columns to group rows under collapsible synthetic headers (nested when >1). Mutually exclusive with `idColumn`/`parentColumn` (takes priority if both set). |
+| `aggregates` | `record<string, "sum" \| "count" \| "avg">` | — | Group-by-column mode only: per-column rollup shown on header rows over each group's descendant leaves. Keys must be result columns; ignored in master-detail mode. |
+| `idColumn` | `string` | — | Master-detail (tree) mode: result column holding each row's unique id. Requires `parentColumn`. |
+| `parentColumn` | `string` | — | Master-detail (tree) mode: result column referencing a parent row's `idColumn` value. Requires `idColumn`. A null/empty/unmatched parent makes the row a root. |
 | `style` | `string` | — | Optional inline CSS declaration string, parsed and merged over the component's defaults (universal prop). |
 | `_queryId` | `string` | — | (internal; resolver-stamped, not author-set) |
 
