@@ -70,7 +70,7 @@ The three primitives **not** governed by app parity, owned by Fused spec:
 
 - `button` and `video-review` — the human's feedback/reply channel (`spec/ui/json-ui.md`
   § Actions & selection).
-- `canvas` — the free-form layout surface (`spec/json-ui-canvas.md`).
+- `canvas` — the free-form layout surface (`spec/ui/data/canvas.md`).
 
 ## 5. The `writesParam` flag (input contract)
 
@@ -159,7 +159,7 @@ without a model turn:
   what the server resolved.
 - **Action sink** (`ActionSink` / `ActionSinkContext`): an optional host-provided
   `(action, terminal) → accepted` handler that, when present, takes precedence over
-  session/parley routing for `button` presses (`spec/json-ui-inbox.md` §4).
+  session/parley routing for `button` presses (`spec/ui/json-ui.md` §4).
 
 ## 10. Heavy renderers stay node-importable / bundle-aware
 

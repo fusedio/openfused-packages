@@ -28,7 +28,7 @@ function asStr(v: unknown): string {
   return v === null || v === undefined ? "" : String(v);
 }
 
-// The sanctioned in-UDF read path (spec/secrets.md, spec/sdk-openfused.md): the
+// The sanctioned in-UDF read path (spec/security/secrets.md, spec/runtime/sdk-openfused.md): the
 // injected `openfused` module's `get_secret`. The copy button hands the user the
 // exact expression to paste into a UDF, with the secret's own name filled in.
 // `JSON.stringify` doubles as a Python string literal for the name (same quoting +

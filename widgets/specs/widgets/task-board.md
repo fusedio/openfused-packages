@@ -36,7 +36,7 @@ to be paste-compatible *with*. This is a deliberate parity break, owned by `spec
 It is also the first widget that **writes** through the resolve plane (ADR 0002), and the first
 that iterates a collection to render per-row / per-lane layouts. Both are knowing extensions of
 the platform, not ports — see `internal-requirements.md` (collection rendering) and
-`spec/json-ui-data.md` (the read-only-plane write exception).
+`spec/ui/data/data.md` (the read-only-plane write exception).
 
 Precedent components to read alongside this spec: `metric.md` / `sql-table.md` (the
 `useDuckDbSqlQuery` `{{ref}}` read shape), `button.md` / `video-review.md` (how an
@@ -244,7 +244,7 @@ Fused-owned primitive is added and how an interaction leaves the widget).
   array client-side: **`isLive`** (bool — true when any run is in a started state) and
   **`liveRunCount`** (int — how many). `runs` itself arrives as a nested array column (cost /
   detail surfaces read it) and is **never** referenced in `$param` SQL (an array, like every
-  selection/feedback value — `spec/json-ui-data.md`); `isLive` / `liveRunCount` are plain scalars
+  selection/feedback value — `spec/ui/data/data.md`); `isLive` / `liveRunCount` are plain scalars
   and may be filtered/sorted in `props.sql` overrides.
 - `project` prop scoping: `project: "<name>"` resolves the board under that project's context;
   `project: "all"` (or unset → all) needs the consuming host's **global resolve context** — the
@@ -290,7 +290,7 @@ as a flat overrides map:
   #156) folded writes *into the read query* via a `mutations` ref kwarg; that read-SQL-path fold
   is **superseded** — the read is now strictly read-only and writes ride the §11 executor above.
   See `task-board.tsx` (outer `TaskBoard` — `fireMutation` / `onMoveTask` / `onCreateTask`) and
-  `surfaces.md` §10 + `spec/json-ui-data.md` § Task-board data.
+  `surfaces.md` §10 + `spec/ui/data/data.md` § Task-board data.
 
 ### Host boundary (seam ②)
 
@@ -395,7 +395,7 @@ as a flat overrides map:
   follow-up). A human can comment "on the board"; pinning a comment to an individual card is out
   of v1 scope.
 - Cross-references: `catalog.md` (the row + parity note), `spec/ui/json-ui.md` § Authoring &
-  catalog (the 4th spec-owned primitive), `spec/json-ui-data.md` (the read-only-plane write
+  catalog (the 4th spec-owned primitive), `spec/ui/data/data.md` (the read-only-plane write
   exception + the `$param`-vs-array/object rule), `surfaces.md` §10 (the generic
   event-triggered executor — the board's write seam — + the host resolve context), and the
   handoff ADRs `0001` / `0002`.

@@ -1,7 +1,7 @@
 // secrets-manager.test.ts — guards the in-UDF access snippet the Secrets page's
 // copy button hands the user (next to reveal/delete). The snippet MUST be the
-// sanctioned read path `openfused.get_secret(<name>)` (spec/secrets.md,
-// spec/sdk-openfused.md), with the name as a safe, escaped string literal — the
+// sanctioned read path `openfused.get_secret(<name>)` (spec/security/secrets.md,
+// spec/runtime/sdk-openfused.md), with the name as a safe, escaped string literal — the
 // clipboard wiring itself is thin and verified in the live app.
 
 import { describe, it, expect } from "vitest";

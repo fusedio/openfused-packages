@@ -3,7 +3,7 @@ import readline from "node:readline";
 
 /**
  * `@fusedio/dev-serve-client` — the generic, project-ignorant client for the
- * shared `openfused dev serve` process (spec/dev-serve.md): a SINGLE multi-tenant
+ * shared `openfused dev serve` process (spec/cli/dev-serve.md): a SINGLE multi-tenant
  * execution server a host OWNS — spawned lazily on first use, attached (killed on
  * host exit), respawned once after a crash. It replaces the per-project `widget
  * data-serve` daemons for project-rooted resolves: each request addresses its
@@ -14,7 +14,7 @@ import readline from "node:readline";
  * also route here, addressed by a loose DIRECTORY instead of a project:
  * `?dir=<abs>` (flat) or `?projectDir=<abs>` (skill-folder). See
  * `resolveWidgetDataDir` / `executeUdfDir` below — there is no separate standalone
- * daemon any more (spec/dev-serve.md, spec/feedback/local.md).
+ * daemon any more (spec/cli/dev-serve.md, spec/feedback/local.md).
  *
  * The handshake token never leaves this process; the browser talks to the server
  * only through the host's proxy route.
@@ -56,7 +56,7 @@ function spawnDevServe(): Promise<DevServe> {
   const { command, args } = openfusedCommand();
   const child = spawn(command, [...args, "dev", "serve"], {
     // Multi-tenant: no cwd pin and no OPENFUSED_PROJECT — every request carries
-    // its own workspace+project and resolves its own env (spec/dev-serve.md).
+    // its own workspace+project and resolves its own env (spec/cli/dev-serve.md).
     env: { ...process.env },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -246,7 +246,7 @@ export function executeUdfDir(
 }
 
 /**
- * The built-in `_core` workspace (spec/core.md): a read-only, force-local set of
+ * The built-in `_core` workspace (spec/projects/core.md): a read-only, force-local set of
  * project UDFs `dev serve` resolves automatically (the venv is materialized at
  * dev-serve startup). It needs no env pin, so it skips any env guard and addresses
  * `?workspace=_core&project=<CORE_PROJECT>` directly.

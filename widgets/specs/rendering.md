@@ -50,7 +50,7 @@ The walk is recursive and registry-driven:
    box** (so layout is identical to rendering the node directly) carrying the
    `data-ofw-node="<path>"` attribute. The marker holds the node's stable path for
    page-level comment anchoring (see [`comments.md`](./comments.md); detail also in
-   `spec/json-ui-comments.md` §9).
+   `spec/ui/json-ui.md` §9).
 3. **Registry lookup.** The `registry` keyed by `node.type` (derived once
    from `componentDefs` — [`catalog.md`](./catalog.md),
    [`internal-requirements.md`](./internal-requirements.md) §1). A miss renders a
@@ -80,7 +80,7 @@ rows resolve by id, not by re-running SQL client-side:
 
 The stamping itself, the `{{ref}}` / `$param` grammar, and the DuckDB resolution are
 the **host's** contract — see [`authoring.md`](./authoring.md) (binding authoring view)
-and host `spec/json-ui-data.md`.
+and host `spec/ui/data/data.md`.
 
 ## 4. The host bridge at render time
 
@@ -129,7 +129,7 @@ contract-level summary; the exhaustive invariants live in
   clients; a submit press locks into its submitted state only on a `true` return.
   Default `null` → the button falls through to the unchanged session/parley routing
   (and the MCP-Apps no-op posture when neither is active). See host
-  `spec/json-ui-inbox.md` §4.
+  `spec/ui/json-ui.md` §4.
 
 ## 5. zod is inert at render
 
@@ -196,7 +196,7 @@ widget-data resolve proxy to obtain `{data, errors, depMap, config}`, render the
 
 - the consuming control-plane app's native render + per-project resolve daemon (and its
   render path: first paint, reactivity, routing) now lives in fusedio/flow;
-- host `spec/json-ui-data.md` — SQL resolution, the `{{ref}}`/`$param` grammar, the
+- host `spec/ui/data/data.md` — SQL resolution, the `{{ref}}`/`$param` grammar, the
   security boundary.
 
 ---
@@ -213,4 +213,4 @@ widget-data resolve proxy to obtain `{data, errors, depMap, config}`, render the
   `components.json` generation (the hard type gate).
 - [`comments.md`](./comments.md) — the comment overlay that consumes `[data-ofw-node]`.
 - Host: the consumer render + resolve daemon now lives in fusedio/flow;
-  `spec/json-ui-data.md` (SQL resolution + grammar + security boundary).
+  `spec/ui/data/data.md` (SQL resolution + grammar + security boundary).

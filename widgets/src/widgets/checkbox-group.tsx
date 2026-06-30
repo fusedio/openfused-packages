@@ -14,7 +14,7 @@
 // NOT to an app component. Because it writes an ARRAY param it is — like
 // `sql-table`'s `selectionParam` and `video-review` — a feedback primitive
 // whose array param MUST NEVER be referenced in SQL ($param is text
-// substitution; only scalars are SQL-safe — spec/json-ui-data.md).
+// substitution; only scalars are SQL-safe — spec/ui/data/data.md).
 //
 // Authored against `@fusedio/widget-sdk` for the contract/param binding and the
 // shared `@kit` ui-kit `Checkbox` + `Label` primitives (the dumb checked/
