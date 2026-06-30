@@ -81,7 +81,7 @@ The free-form layout layer (ReactFlow):
 
 The `canvas` json-ui **widget** wraps this for in-tree use; the canvas
 config/routing/param-store internals are subpath-importable but are implementation detail
-(see `spec/json-ui-canvas.md`).
+(see `spec/ui/data/canvas.md`).
 
 ## 6. The map renderers (`@fusedio/widgets/maps/*`)
 
@@ -134,7 +134,7 @@ contract and the only thing the runtime consumes from this package without JS.
 > **resolve-daemon-host-only** capability. The physical-architecture consequences (which
 > package gains `@dnd-kit`, the per-surface real/stub table) are in
 > [`spec/ui/ui-architecture.md`](../../../spec/ui/ui-architecture.md) §13; the data/write
-> grammar, the reserved refs, and the security boundary are in `spec/json-ui-data.md`; the
+> grammar, the reserved refs, and the security boundary are in `spec/ui/data/data.md`; the
 > resolve-daemon executor and the global resolve context are the consuming host's concern
 > (the external Flow app, `fusedio/flow`).
 

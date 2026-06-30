@@ -78,8 +78,8 @@ component exists, the behavioural *expectation*, and the *exposed params*.
 
 - It is the **render** half of JSON-UI. The **authoring grammar**, the SQL/data contract,
   and the viewing surfaces are specified at the repo level: `spec/ui/json-ui.md` (config
-  document + catalog + single source of truth), `spec/json-ui-data.md` (the `{{ref}}` /
-  `$param` grammar + the hardened-DuckDB resolver), `spec/json-ui-local.md` (the
+  document + catalog + single source of truth), `spec/ui/data/data.md` (the `{{ref}}` /
+  `$param` grammar + the hardened-DuckDB resolver), `spec/feedback/local.md` (the
   `widget-host/` viewer + the parley). The Fused-owned render surfaces are the
   `widget-host/` viewer/parley (native React render) and the deployed serve plane (the
   frozen `widget.html` bundle); external consumers (the Flow control-plane app, `fusedio/flow`)

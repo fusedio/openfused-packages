@@ -89,7 +89,7 @@ extra margin/height automatically when a title is set, so nothing clips.
 `value` / `label` columns; identical normalization). `checkbox-group` is the one input that
 writes a **non-scalar** value — an ARRAY of the ticked option values, like `sql-table`'s
 `selectionParam`; that array is feedback for the agent and **must never be referenced in SQL**
-([`json-ui-data.md`](../../../spec/json-ui-data.md)). `camera-input` / `file-upload` /
+([`json-ui-data.md`](../../../spec/ui/data/data.md)). `camera-input` / `file-upload` /
 `gallery-input` broadcast a **data URL** (or array) as the param value. Every input declares
 `writesParam: true` — see *Single source of truth*.
 
@@ -129,7 +129,7 @@ dynamic-import / placeholder-alias invariant.
 
 `sql-runner` is a named-query **source** tier ahead of the `udfs/` registry: the host runs its
 `sql` to a DataFrame and registers it as `{{name}}` for descendants. It renders everywhere (it
-ships no heavy deps). The resolver coupling is host-owned — see `spec/json-ui-data.md`.
+ships no heavy deps). The resolver coupling is host-owned — see `spec/ui/data/data.md`.
 
 ### Feedback primitives (Fused-owned — not governed by app parity)
 
@@ -158,7 +158,7 @@ runs on a **control-plane consumer surface** (now external — Flow, `fusedio/fl
 is local-only), so it works for AWS-backed projects too; only the deployed-serve bundle (no
 `_core` project in scope, no `execUrl`) renders "unavailable." See
 [`widgets/task-board.md`](./widgets/task-board.md), `spec/ui/json-ui.md` § Authoring & catalog,
-and `spec/json-ui-data.md`.
+and `spec/ui/data/data.md`.
 
 ---
 
@@ -278,5 +278,5 @@ behaviour above.
 - [`canvas.md`](./canvas.md), [`comments.md`](./comments.md) — the canvas and comment-overlay
   rendering surfaces.
 - [`widgets/`](./widgets/) — one spec per component type (**authoritative for props**).
-- `spec/json-ui-data.md` (host) — the `{{ref}}` / `$param` grammar and the hardened-DuckDB
+- `spec/ui/data/data.md` (host) — the `{{ref}}` / `$param` grammar and the hardened-DuckDB
   resolver that resolves data-bound nodes and the `sql-runner` source.

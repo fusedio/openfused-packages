@@ -1,6 +1,6 @@
 // widgets/video-review.tsx — timestamped video feedback (INPUT): the human
 // scrubs a video, drops timecoded notes, and QAs the agent's previous round of
-// fixes. Built for the PARLEY loop (spec/json-ui-local.md § The parley): an
+// fixes. Built for the PARLEY loop (spec/feedback/local.md § The parley): an
 // agent producing a video pushes a view with this component, the human's notes
 // ride the ordinary params channel as they are written (the debounced `params`
 // reporter — no extra machinery), and the agent re-edits and pushes the next

@@ -1,5 +1,5 @@
 // action-sink.tsx — the host action sink: the button's THIRD channel
-// (spec/json-ui-inbox.md §4).
+// (spec/ui/json-ui.md §4).
 //
 // A host page that embeds the renderer natively (the app's inbox) provides a
 // handler above `RenderTree` via this context (the app's WidgetView wraps its

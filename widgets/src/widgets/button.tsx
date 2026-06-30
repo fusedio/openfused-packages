@@ -126,7 +126,7 @@ function Button({ element }: ComponentRenderProps<ButtonProps>) {
     if (exec.canFire) void exec.fire();
 
     // (2) Report the feedback action, if an `action` name is set AND a host
-    // channel is present (spec/json-ui-inbox.md §4: the embedding host installs
+    // channel is present (spec/ui/json-ui.md §4: the embedding host installs
     // one above `RenderTree` via `ActionSinkContext` — the app's WidgetView, or
     // the standalone bundle's session/parley reporters). A submit press locks
     // only when the sink reports success; non-submit presses flash.

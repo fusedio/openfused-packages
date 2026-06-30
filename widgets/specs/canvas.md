@@ -13,7 +13,7 @@ application's MCP-host canvas, reshaped onto this package's renderer; the config
 
 This spec is the **rendering half** only. The **host** half — teaching the Python planner to
 descend into `props.nodes[].widget` to discover queries, stamp `_queryId`s, and fold them
-into the global depMap — stays in [`spec/json-ui-canvas.md`](../../../spec/json-ui-canvas.md)
+into the global depMap — stays in [`spec/ui/data/canvas.md`](../../../spec/ui/data/canvas.md)
 §5 and is **not** absorbed here. The split is hard: edge-gating is entirely client-side; the
 server resolver still just resolves SQL given a params dict.
 
@@ -196,7 +196,7 @@ queries the page bridge — node SQL runs through the per-node gated stores. Nod
 seeded into the *canvas* store (not the page store), so inputs don't broadcast on mount — only
 genuine user edits mirror, no load-time feedback noise. The mirrored snapshot is flat
 (last-write-wins across origins); edge-gating is unchanged for reads. See
-[`spec/json-ui-canvas.md`](../../../spec/json-ui-canvas.md) §3b for the full feedback rationale.
+[`spec/ui/data/canvas.md`](../../../spec/ui/data/canvas.md) §3b for the full feedback rationale.
 
 ---
 
@@ -296,7 +296,7 @@ the surface's `min-height: 640` floor; the page-frame decision lives in the cons
 
 This is the canonical example of the host/package split: the package renders a bounded
 surface; the consumer decides how that surface is framed in the page. See
-[`spec/json-ui-canvas.md`](../../../spec/json-ui-canvas.md) §3c.
+[`spec/ui/data/canvas.md`](../../../spec/ui/data/canvas.md) §3c.
 
 ---
 
@@ -338,4 +338,4 @@ specified in **[comments.md](./comments.md)**. `CanvasPropsSchema` gains `commen
   [internal-requirements.md](./internal-requirements.md).
 - **HOST half (NOT in this package):** the planner descending into `props.nodes[].widget`, the
   global depMap, the per-node `only`-subset resolve route, and the behavioural rationale for
-  edge-gating / feedback-mirror / full-bleed — [`spec/json-ui-canvas.md`](../../../spec/json-ui-canvas.md).
+  edge-gating / feedback-mirror / full-bleed — [`spec/ui/data/canvas.md`](../../../spec/ui/data/canvas.md).

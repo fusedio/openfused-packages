@@ -4,7 +4,7 @@ import { PassThrough } from "node:stream";
 
 /**
  * Unit coverage for the `@fusedio/dev-serve-client` → `dev serve` proxy
- * (spec/dev-serve.md, spec/ui/widget-host-migration.md §1.1).
+ * (spec/cli/dev-serve.md, spec/ui/widget-host-migration.md §1.1).
  *
  * The cutover replaced N per-project `widget data-serve` daemons with ONE shared
  * `openfused dev serve` process, addressed per request by `?workspace=&project=`
