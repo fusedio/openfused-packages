@@ -55,12 +55,35 @@ function isGroupByConfig(cfg: GroupingConfig): cfg is GroupByConfig {
   return "groupBy" in cfg;
 }
 
-/** Comparator matching sql-table.tsx:230-242 semantics. */
+/**
+ * Stringify a cell value exactly as the sql-table widget's `renderCell` does,
+ * so within-group sort orders identically to the ungrouped table:
+ * null/undefined → "", bigint → its string form, object → JSON.stringify
+ * (falling back to String on failure), everything else → String.
+ */
+function stringifyCell(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "bigint") return v.toString();
+  if (typeof v === "object") {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return String(v);
+    }
+  }
+  return String(v);
+}
+
+/**
+ * Comparator matching the sql-table widget's ungrouped sort: number/number
+ * subtract, otherwise `renderCell`-equivalent stringification compared with
+ * `localeCompare(..., { numeric: true })`.
+ */
 function compareValues(av: unknown, bv: unknown): number {
   if (typeof av === "number" && typeof bv === "number") {
     return av - bv;
   }
-  return String(av ?? "").localeCompare(String(bv ?? ""), undefined, {
+  return stringifyCell(av).localeCompare(stringifyCell(bv), undefined, {
     numeric: true,
   });
 }
@@ -292,18 +315,25 @@ function buildMasterDetailRows(
   const outMeta: RowMeta[] = [];
   const outKeys: string[] = [];
 
-  function walk(
-    nodes: Record<string, unknown>[],
-    depth: number,
-    visited: Set<string>,
-  ): void {
+  // Two identity-keyed sets (keyed by the row OBJECT, not the id string, so
+  // duplicate-id / empty-id rows are NOT collapsed into one another):
+  //   • `accounted` — every row reached through the tree, INCLUDING the
+  //     descendants of collapsed nodes. Drives orphan recovery: a row is only an
+  //     orphan if it is reachable from no root at all (e.g. trapped in a mutual
+  //     cycle), NOT merely hidden under a collapsed parent.
+  //   • `emitted`   — guards the cycle within an expanded walk so a true cycle's
+  //     objects are each emitted at most once.
+  const accounted = new Set<Record<string, unknown>>();
+  const emitted = new Set<Record<string, unknown>>();
+
+  function walk(nodes: Record<string, unknown>[], depth: number): void {
     const sorted =
       sortable && sortKey !== null ? sortRows(nodes, sortKey, sortDir) : nodes;
     for (const node of sorted) {
-      const id = String(node[idColumn] ?? "");
-      if (visited.has(id)) continue; // cycle guard
-      visited.add(id);
+      if (emitted.has(node)) continue; // cycle guard (by identity)
+      emitted.add(node);
 
+      const id = String(node[idColumn] ?? "");
       const kids = children.get(id) ?? [];
       const expandable = kids.length > 0;
       const isExpanded = expandable && !collapsedKeys.has(id);
@@ -312,13 +342,41 @@ function buildMasterDetailRows(
       outMeta.push({ depth, expandable, expanded: isExpanded });
       outKeys.push(id);
 
+      // Mark this subtree accounted-for whether or not it is expanded, so a
+      // collapsed node's children are NOT later resurfaced as orphan roots.
+      markAccounted(kids);
+
       if (isExpanded) {
-        walk(kids, depth + 1, visited);
+        walk(kids, depth + 1);
       }
     }
   }
 
-  walk(roots, 0, new Set<string>());
+  // Mark a subtree reachable (cycle-safe via the same `accounted` set).
+  function markAccounted(nodes: Record<string, unknown>[]): void {
+    for (const node of nodes) {
+      if (accounted.has(node)) continue;
+      accounted.add(node);
+      markAccounted(children.get(String(node[idColumn] ?? "")) ?? []);
+    }
+  }
+
+  markAccounted(roots);
+  walk(roots, 0);
+  // Mutual cycles (A→B, B→A) leave `roots` empty; rows trapped in such a cycle
+  // are reachable from no root. Surface anything never accounted-for as
+  // standalone depth-0 rows so data is never silently hidden (empty table with a
+  // non-zero row count). They are emitted flat (not expandable) — the
+  // parent/child links inside a cycle are unrenderable, so we degrade to a flat
+  // listing rather than dropping or looping.
+  for (const node of rows) {
+    if (accounted.has(node) || emitted.has(node)) continue;
+    emitted.add(node);
+    accounted.add(node);
+    outRows.push(node);
+    outMeta.push({ depth: 0, expandable: false, expanded: false });
+    outKeys.push(String(node[idColumn] ?? ""));
+  }
   return { rows: outRows, meta: outMeta, keys: outKeys };
 }
 

@@ -403,6 +403,24 @@ describe("sort: siblings ordered within parent, hierarchy preserved", () => {
     expect(r.rows[1]["id"]).toBe("2"); // B before C
     expect(r.rows[2]["id"]).toBe("3");
   });
+
+  it("object-valued column sorts by renderCell (JSON.stringify) order, not [object Object] ties", () => {
+    // If the comparator used plain String(...) every object would render
+    // "[object Object]" and tie — leaving input order. With renderCell-equivalent
+    // stringification they sort by their JSON form: {"k":1} < {"k":2} < {"k":3}.
+    const objRows = [
+      { cat: "A", payload: { k: 3 }, tag: "three" },
+      { cat: "A", payload: { k: 1 }, tag: "one" },
+      { cat: "A", payload: { k: 2 }, tag: "two" },
+    ];
+    const r = buildGroupedRows(
+      objRows,
+      { groupBy: ["cat"] },
+      vs({ sortKey: "payload", sortDir: "asc", sortable: true }),
+    );
+    const leafTags = r.rows.slice(1).map((row) => row["tag"]);
+    expect(leafTags).toEqual(["one", "two", "three"]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -421,18 +439,38 @@ describe("malformed input: robustness", () => {
     expect(r.meta[0].depth).toBe(0);
   });
 
-  it("cycle via visited set: no infinite loop", () => {
-    // A → B → A cycle (B's parent is A, but A's parent is B — one will be root via unmatched)
+  it("mutual cycle (A↔B): both rows surface as fallback roots, none dropped", () => {
+    // A's parent is B, B's parent is A — neither qualifies as a root, so `roots`
+    // is empty and the main walk emits nothing. The orphan-recovery pass must
+    // surface both as depth-0 roots so data is never silently hidden.
     const rows = [
       { id: "A", parent: "B", name: "A" },
       { id: "B", parent: "A", name: "B" },
     ];
-    // A's parent is B which exists, B's parent is A which exists.
-    // Both have each other as parent → one should appear as root due to processing order.
-    // Key guarantee: no infinite loop.
-    expect(() =>
-      buildGroupedRows(rows, { idColumn: "id", parentColumn: "parent" }, FLAT_VS),
-    ).not.toThrow();
+    const r = buildGroupedRows(
+      rows,
+      { idColumn: "id", parentColumn: "parent" },
+      FLAT_VS,
+    );
+    expect(r.rows).toHaveLength(2);
+    expect(r.rows.map((row) => row["id"]).sort()).toEqual(["A", "B"]);
+    expect(r.meta.every((m) => m.depth === 0)).toBe(true);
+  });
+
+  it("duplicate ids: both rows render (identity-keyed visited, not id-keyed)", () => {
+    // Two distinct rows share id "1". An id-keyed cycle guard would skip the
+    // second as already-visited; identity-keyed guarding keeps both.
+    const rows = [
+      { id: "1", parent: null, name: "first" },
+      { id: "1", parent: null, name: "second" },
+    ];
+    const r = buildGroupedRows(
+      rows,
+      { idColumn: "id", parentColumn: "parent" },
+      FLAT_VS,
+    );
+    expect(r.rows).toHaveLength(2);
+    expect(r.rows.map((row) => row["name"]).sort()).toEqual(["first", "second"]);
   });
 
   it("parent pointing at non-existent id treated as root", () => {
