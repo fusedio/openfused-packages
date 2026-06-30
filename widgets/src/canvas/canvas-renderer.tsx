@@ -637,11 +637,6 @@ function CanvasInner({ element }: ComponentRenderProps) {
     ),
     [runtime],
   );
-  // `⤢`: promote the peeked node to the full-viewport fullscreen overlay.
-  const onPeekExpand = React.useCallback((n: CanvasNodeModel) => {
-    setPeekNodeId(null);
-    setFullscreenNodeId(n.id);
-  }, []);
 
   // --- Comments (json-ui-comments.md) ---------------------------------------
   // `enableComments` gates the whole overlay. ON BY DEFAULT — set
@@ -829,13 +824,14 @@ function CanvasInner({ element }: ComponentRenderProps) {
           onClose={closeFullscreen}
         />
       ) : null}
-      {/* Always mounted so it can slide OUT on close; renders null when no node. */}
+      {/* Always mounted so it can slide OUT on close; renders null when no node.
+          No `onExpand` → the drawer hides the ⤢ button (peek is opened from the
+          Compact graph; a separate fullscreen affordance is redundant here). */}
       <CanvasNodeDrawer
         node={peekNode}
         title={peekTitle}
         renderBody={renderPeekBody}
         onClose={closePeek}
-        onExpand={onPeekExpand}
       />
     </div>
   );
