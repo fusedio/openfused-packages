@@ -168,7 +168,13 @@ function buildGroupByLevel(
   for (const val of sortedValues) {
     const valKey = String(val ?? "");
     const keyParts = [...parentKeyParts, valKey];
-    const groupKey = keyParts.join(" ");
+    // Join with the ASCII unit separator (U+001F) so group values containing
+    // spaces can't collide across levels (e.g. ["North","West Side"] vs
+    // ["North West","Side"]). U+001F never appears in real column data and,
+    // unlike NUL, keeps the file textual (git won't mark it binary). A
+    // single-element key is still the bare value, so single-level keys are
+    // unchanged.
+    const groupKey = keyParts.join("");
     const bucket = buckets.get(valKey)!;
     const isExpanded = !collapsedKeys.has(groupKey);
 

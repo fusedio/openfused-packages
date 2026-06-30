@@ -10,6 +10,11 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Multi-level group keys are joined by the ASCII unit separator U+001F (so
+// values containing spaces can't collide across levels). Single-level keys are
+// the bare value.
+const KEY_SEP = "";
+
 const FLAT_VS: GroupingViewState = {
   collapsedKeys: new Set(),
   sortKey: null,
@@ -115,13 +120,37 @@ describe("groupBy: nested two columns", () => {
     expect(depths).toEqual([0, 1, 2, 1, 2, 2, 0, 1, 2]);
   });
 
-  it("keys track nested paths (space-joined)", () => {
+  it("keys track nested paths (NUL-joined)", () => {
     const r = buildGroupedRows(rows, { groupBy: ["dept", "team"] }, FLAT_VS);
-    // depth-0 key = "Eng", depth-1 key = "Eng Frontend"
+    // depth-0 key = "Eng", depth-1 key = "Eng<NUL>Frontend"
     expect(r.keys[0]).toBe("Eng");
-    expect(r.keys[1]).toBe("Eng Frontend");
-    expect(r.keys[3]).toBe("Eng Backend");
+    expect(r.keys[1]).toBe("Eng" + KEY_SEP + "Frontend");
+    expect(r.keys[3]).toBe("Eng" + KEY_SEP + "Backend");
     expect(r.keys[6]).toBe("HR");
+  });
+
+  it("multi-level keys do not collide when group values contain spaces", () => {
+    // Space-joined keys WOULD have collided: both ["North","West Side"] and
+    // ["North West","Side"] yield "North West Side". NUL-join keeps them distinct.
+    const collidey = [
+      { region: "North", city: "West Side", name: "a" },
+      { region: "North West", city: "Side", name: "b" },
+    ];
+    const r = buildGroupedRows(collidey, { groupBy: ["region", "city"] }, FLAT_VS);
+    const depth1Keys = r.keys.filter((_, i) => r.meta[i].depth === 1);
+    expect(depth1Keys).toHaveLength(2);
+    expect(depth1Keys[0]).not.toBe(depth1Keys[1]);
+
+    // Collapsing one depth-1 group must NOT collapse the other.
+    const r2 = buildGroupedRows(
+      collidey,
+      { groupBy: ["region", "city"] },
+      vs({ collapsedKeys: new Set([depth1Keys[0]]) }),
+    );
+    const collapsed = r2.meta.find((_, i) => r2.keys[i] === depth1Keys[0]);
+    const other = r2.meta.find((_, i) => r2.keys[i] === depth1Keys[1]);
+    expect(collapsed?.expanded).toBe(false);
+    expect(other?.expanded).toBe(true);
   });
 });
 
