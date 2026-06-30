@@ -368,9 +368,16 @@ function buildMasterDetailRows(
   // standalone depth-0 rows so data is never silently hidden (empty table with a
   // non-zero row count). They are emitted flat (not expandable) — the
   // parent/child links inside a cycle are unrenderable, so we degrade to a flat
-  // listing rather than dropping or looping.
-  for (const node of rows) {
-    if (accounted.has(node) || emitted.has(node)) continue;
+  // listing rather than dropping or looping. They are sorted with the same
+  // comparator as normal roots/siblings so recovered rows aren't left in raw
+  // input order while everything else is sorted.
+  const orphans = rows.filter((r) => !accounted.has(r) && !emitted.has(r));
+  const sortedOrphans =
+    sortable && sortKey !== null
+      ? sortRows(orphans, sortKey, sortDir)
+      : orphans;
+  for (const node of sortedOrphans) {
+    if (emitted.has(node)) continue;
     emitted.add(node);
     accounted.add(node);
     outRows.push(node);

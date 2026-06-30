@@ -457,6 +457,33 @@ describe("malformed input: robustness", () => {
     expect(r.meta.every((m) => m.depth === 0)).toBe(true);
   });
 
+  it("recovered orphan rows are sorted, not left in input order", () => {
+    // An all-orphan mutual cycle of 3 rows: each points at another id, so none
+    // is a root and all are surfaced flat at depth 0. They must obey the active
+    // column sort like normal rows, not stay in raw input order.
+    const cyclic = [
+      { id: "a", parent: "b", val: 30 },
+      { id: "b", parent: "c", val: 10 },
+      { id: "c", parent: "a", val: 20 },
+    ];
+    const cfg = { idColumn: "id", parentColumn: "parent" };
+
+    const asc = buildGroupedRows(
+      cyclic,
+      cfg,
+      vs({ sortKey: "val", sortDir: "asc", sortable: true }),
+    );
+    expect(asc.rows.map((r) => r["val"])).toEqual([10, 20, 30]);
+    expect(asc.meta.every((m) => m.depth === 0 && !m.expandable)).toBe(true);
+
+    const desc = buildGroupedRows(
+      cyclic,
+      cfg,
+      vs({ sortKey: "val", sortDir: "desc", sortable: true }),
+    );
+    expect(desc.rows.map((r) => r["val"])).toEqual([30, 20, 10]);
+  });
+
   it("duplicate ids: both rows render (identity-keyed visited, not id-keyed)", () => {
     // Two distinct rows share id "1". An id-keyed cycle guard would skip the
     // second as already-visited; identity-keyed guarding keeps both.
