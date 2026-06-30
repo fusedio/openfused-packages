@@ -4,7 +4,7 @@
 // React state — search, status filter, group/sort, list⇄board toggle, and
 // collapsible groups/lanes.
 //
-// This is the 4th OpenFused-OWNED primitive (after `button`, `video-review`,
+// This is the 4th Fused-OWNED primitive (after `button`, `video-review`,
 // `canvas`): it is NOT in the Fused app, so it breaks paste-compatibility on
 // purpose (spec/ui/json-ui.md § Authoring & catalog, ADR 0007). Full contract:
 // packages/widgets/specs/widgets/task-board.md.
@@ -56,25 +56,6 @@
 import React from "react";
 import { z } from "zod";
 import {
-  AppWindow,
-  ArrowUpDown,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  CircleDot,
-  Columns3,
-  Folder,
-  Hourglass,
-  Layers,
-  Loader2,
-  Network,
-  Plus,
-  RotateCcw,
-  Search,
-  User,
-  X,
-} from "lucide-react";
-import {
   DndContext,
   DragOverlay,
   PointerSensor,
@@ -110,6 +91,23 @@ import {
   cn,
   issueStatusIcon,
   issueStatusIconDefault,
+  AppWindow,
+  ArrowUpDown,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  CircleDot,
+  Columns3,
+  Folder,
+  Hourglass,
+  Layers,
+  Loader2,
+  Network,
+  Plus,
+  RotateCcw,
+  Search,
+  User,
+  X,
 } from "@kit";
 
 import { UNIVERSAL_PROPS } from "./_universal";
@@ -132,6 +130,7 @@ import {
   timeAgo,
   epoch,
   toTask,
+  agentModelLabel,
   type TaskStatus,
   type Task,
 } from "./task-board-shared";
@@ -1318,6 +1317,10 @@ interface ComposerAgent {
   id: string;
   slug: string;
   name: string;
+  /** The agent's underlying model, shown as picker subtext. Nullable/absent when
+   * the roster is derived from task ids (off-host) — then the subtext degrades to
+   * "default". */
+  model?: string | null;
 }
 
 const DRAFT_KEY = "openfused:task-draft";
@@ -1635,7 +1638,7 @@ function NewTaskDialog({
                         setAssigneeOpen(false);
                       }}
                     >
-                      <Identity name={agent.name} size="sm" />
+                      <Identity name={agent.name} size="sm" subtext={agentModelLabel(agent.model)} />
                     </button>
                   ))
                 )}
@@ -2108,7 +2111,7 @@ const READ_SQL = "SELECT * FROM {{_core.task-management.read?rev=$ofTasksRev}}";
 // composer + reassign roster is an executor READ of the packaged agents UDF (the one
 // resolve-plane query is already spent on the task read, so the roster rides the
 // executor seam). These resolve only where `_core.*` cross-project refs resolve —
-// the OpenFused app's dev serve.
+// the Fused app's dev serve.
 const CORE_CREATE_REF = "_core.task-management.create";
 const CORE_UPDATE_STATUS_REF = "_core.task-management.update_status";
 const CORE_ASSIGN_REF = "_core.task-management.assign";
@@ -2248,6 +2251,7 @@ function TaskBoard({ element }: ComponentRenderProps<TaskBoardProps>) {
           id: String(a.id ?? ""),
           slug: String(a.slug ?? a.id ?? ""),
           name: String(a.name ?? a.slug ?? a.id ?? ""),
+          model: a.model == null ? null : String(a.model),
         })),
       );
     });
@@ -2410,7 +2414,7 @@ const definition: ComponentDef = {
     component: TaskBoard,
     props: taskBoardProps,
     description:
-      "OpenFused task board — a list view, a kanban board, and a parentId delegation tree of a project's (or all projects') tasks, with search, status filter, group/sort, list/board/tree toggle, collapsible groups, drag-to-change-status, and a create-task composer, all held as client state. Reads task rows via {{ref}} SQL over the packaged _core.task-management.read UDF (read-only); writes (drag-to-move, create, assign) fire the _core.task-management update_status / create / assign UDFs through the generic event-triggered executor seam (bridge.udfs.execute), then bump a refresh param to re-resolve the read (mutate-then-refetch). Resolves only where _core.* cross-project refs resolve (the app's dev serve). Click-through (a task row → its detail, a root → its widget board) builds a path from the taskHref/boardHref route templates and calls the host's generic navigate(path) capability (OpenfusedHost, surfaces.md §11); surfaces with no host render the rows inert (non-linking). The assignee shows the raw agentId.",
+      "Fused task board — a list view, a kanban board, and a parentId delegation tree of a project's (or all projects') tasks, with search, status filter, group/sort, list/board/tree toggle, collapsible groups, drag-to-change-status, and a create-task composer, all held as client state. Reads task rows via {{ref}} SQL over the packaged _core.task-management.read UDF (read-only); writes (drag-to-move, create, assign) fire the _core.task-management update_status / create / assign UDFs through the generic event-triggered executor seam (bridge.udfs.execute), then bump a refresh param to re-resolve the read (mutate-then-refetch). Resolves only where _core.* cross-project refs resolve (the app's dev serve). Click-through (a task row → its detail, a root → its widget board) builds a path from the taskHref/boardHref route templates and calls the host's generic navigate(path) capability (OpenfusedHost, surfaces.md §11); surfaces with no host render the rows inert (non-linking). The assignee shows the raw agentId.",
     hasChildren: false,
   }),
   writesParam: true,

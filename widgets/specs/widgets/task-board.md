@@ -12,7 +12,7 @@
 > `_core.task-management.create` (create) through the **generic event-triggered executor seam**
 > (`bridge.udfs.execute` → the host `POST /api/udf-exec` route — surfaces.md §10, the
 > same seam a `button`'s `executor` prop fires), then bumping a refresh param to re-resolve the
-> read (mutate-then-refetch). The **4th OpenFused-owned primitive** (after `button`,
+> read (mutate-then-refetch). The **4th Fused-owned primitive** (after `button`,
 > `video-review`, `canvas`) — it is NOT in the Fused application, so it breaks paste-compatibility.
 > It runs on a **control-plane consumer surface** (now external — Flow, `fusedio/flow` — where
 > `_core.*` cross-project refs resolve); only the deployed-serve bundle, which has no `_core`
@@ -29,18 +29,18 @@ node `{"type":"task-board"}`, instead of the bespoke React page. Its role is a *
 mutating display**: it reads live task rows and lets a human re-triage them (drag a card to
 change status; create a task) without a model turn.
 
-It is an **OpenFused-owned primitive**, the fourth after `button`, `video-review`, and `canvas`,
+It is an **Fused-owned primitive**, the fourth after `button`, `video-review`, and `canvas`,
 **not** governed by app parity — the Fused application has no task concept, so there is nothing
 to be paste-compatible *with*. This is a deliberate parity break, owned by `spec/ui/json-ui.md`
 § Authoring & catalog and ADR 0001 (handoff packet `adr/0001-task-board-spec-owned-primitive.md`).
 It is also the first widget that **writes** through the resolve plane (ADR 0002), and the first
 that iterates a collection to render per-row / per-lane layouts. Both are knowing extensions of
 the platform, not ports — see `internal-requirements.md` (collection rendering) and
-`spec/json-ui-data.md` (the read-only-plane write exception).
+`spec/ui/data/data.md` (the read-only-plane write exception).
 
 Precedent components to read alongside this spec: `metric.md` / `sql-table.md` (the
 `useDuckDbSqlQuery` `{{ref}}` read shape), `button.md` / `video-review.md` (how an
-OpenFused-owned primitive is added and how an interaction leaves the widget).
+Fused-owned primitive is added and how an interaction leaves the widget).
 
 ## Expectation
 
@@ -244,7 +244,7 @@ OpenFused-owned primitive is added and how an interaction leaves the widget).
   array client-side: **`isLive`** (bool — true when any run is in a started state) and
   **`liveRunCount`** (int — how many). `runs` itself arrives as a nested array column (cost /
   detail surfaces read it) and is **never** referenced in `$param` SQL (an array, like every
-  selection/feedback value — `spec/json-ui-data.md`); `isLive` / `liveRunCount` are plain scalars
+  selection/feedback value — `spec/ui/data/data.md`); `isLive` / `liveRunCount` are plain scalars
   and may be filtered/sorted in `props.sql` overrides.
 - `project` prop scoping: `project: "<name>"` resolves the board under that project's context;
   `project: "all"` (or unset → all) needs the consuming host's **global resolve context** — the
@@ -290,7 +290,7 @@ as a flat overrides map:
   #156) folded writes *into the read query* via a `mutations` ref kwarg; that read-SQL-path fold
   is **superseded** — the read is now strictly read-only and writes ride the §11 executor above.
   See `task-board.tsx` (outer `TaskBoard` — `fireMutation` / `onMoveTask` / `onCreateTask`) and
-  `surfaces.md` §10 + `spec/json-ui-data.md` § Task-board data.
+  `surfaces.md` §10 + `spec/ui/data/data.md` § Task-board data.
 
 ### Host boundary (seam ②)
 
@@ -361,7 +361,7 @@ as a flat overrides map:
   `packages/widgets/src/widgets/task-board.tsx` (`defineComponent({component, props, description,
   hasChildren: false})` + `writesParam: true`), register it in the `componentDefs` barrel
   (`packages/widgets/src/widgets/index.ts`), and **regenerate `components.json`** (`pnpm --filter
-  @fusedio/widgets generate`) so the hard type gate (`src/openfused/widgets/validate.py` via
+  @fusedio/widgets generate`) so the hard type gate (`src/fused/agent_core/widgets/validate.py` via
   `components.json`) accepts `type:"task-board"` for free. No parallel Python list. The catalog
   count is **34** (catalog.md, overview.md, `spec/ui/json-ui.md`) — the regeneration of
   `components.json` when the `.tsx` lands is what makes the runtime type gate match these specs.
@@ -395,7 +395,7 @@ as a flat overrides map:
   follow-up). A human can comment "on the board"; pinning a comment to an individual card is out
   of v1 scope.
 - Cross-references: `catalog.md` (the row + parity note), `spec/ui/json-ui.md` § Authoring &
-  catalog (the 4th spec-owned primitive), `spec/json-ui-data.md` (the read-only-plane write
+  catalog (the 4th spec-owned primitive), `spec/ui/data/data.md` (the read-only-plane write
   exception + the `$param`-vs-array/object rule), `surfaces.md` §10 (the generic
   event-triggered executor — the board's write seam — + the host resolve context), and the
   handoff ADRs `0001` / `0002`.

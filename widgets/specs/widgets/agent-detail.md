@@ -4,11 +4,11 @@
 > **Runs**, and **Instructions** (prompt editor) for one agent — backed by the
 > packaged `_core.agents-management` CRUD UDFs. Moves the app's former
 > hand-built `AgentDetailPage` into a widget (the same play `task-board` made for
-> the task surface). OpenFused-owned; not governed by app parity.
+> the task surface). Fused-owned; not governed by app parity.
 
 ## Why
 
-The agent roster is a first-class OpenFused concept with packaged `_core`
+The agent roster is a first-class Fused concept with packaged `_core`
 UDFs. Rendering the per-agent interface as a widget lets the same surface be
 authored, resolved, and edited through the `{{ref}}` + executor seam instead of
 bespoke app REST — consistent with `task-board`, and reusable wherever the widget
@@ -25,8 +25,10 @@ unavailable/empty state.
 
 - **Read (resolve plane, one `_queryId`)** — `props.sql` default
   `SELECT * FROM {{_core.agents-management.read?slug=$agentSlug}}` returns the one
-  agent row (id, slug, name, title, role, description, adapter, model, prompt,
-  createdAt). `$agentSlug` is host-bound as a resolve **param** (from the
+  agent row (id, slug, name, title, role, description, adapter, model, effort,
+  prompt, createdAt). `effort` is a required enum (`low|medium|high|xhigh|max`,
+  default `high`) — a missing/unknown value coerces to `high`. `$agentSlug` is
+  host-bound as a resolve **param** (from the
   `/agents/:slug` route) — passed as a `$param`, NOT interpolated into the ref, so a
   slug with ref-grammar chars can't break parsing. The upstream `read` UDF is
   upstream-owned and takes no refresh kwarg; the widget consumes it as-is.
@@ -37,7 +39,7 @@ unavailable/empty state.
   to a single-node widget, so runs ride the executor.
 - **Save (executor write, mutate-then-reflect)** — Overview Save and Instructions
   Save fire `bridge.udfs.execute("_core.agents-management.update", {id, name, title,
-  role, description, adapter, model, prompt})`. The `update` UDF **returns the
+  role, description, adapter, model, effort, prompt})`. The `update` UDF **returns the
   patched record**, which the widget reflects into local state — the view updates
   with no re-resolve (the upstream `read` has no refresh kwarg). A fresh resolve (a
   new agent / navigation) supersedes the local copy; a failed write surfaces inline
@@ -55,23 +57,25 @@ unavailable/empty state.
 ## Tabs
 
 - **Overview** — editable name / title / description / adapter (dropdown from
-  `adapters`) / model; on an adapter change the model resets to that adapter's
-  `default: true` model (else empty, the "default" option). Save persists via
-  `_core.agents-management.update`. Read-only stats grid: Adapter, Model, Runs count
-  (from the Runs read), Created (from the row). `role` is **not** editable (the
-  control was removed) but is preserved on save.
+  `adapters`) / model / effort; on an adapter change the model resets to that
+  adapter's `default: true` model (else empty, the "default" option). Effort is a
+  fixed dropdown over `low|medium|high|xhigh|max` (default `high`), mirroring the
+  model select. Save persists via `_core.agents-management.update` (sending
+  `effort` alongside adapter/model). Read-only stats grid: Adapter, Model, Effort,
+  Runs count (from the Runs read), Created (from the row). `role` is **not** editable
+  (the control was removed) but is preserved on save.
 - **Runs** — the agent's runs (filtered by `agentId`), each linking to its task.
 - **Instructions** — the prompt editor (a `Textarea`); Save persists the prompt.
 
 ## Notes / deferred
 
 - `agent-detail` writes through the resolve/executor seam like `task-board`; it is
-  the second OpenFused-owned widget to do so.
+  the second Fused-owned widget to do so.
 - Not yet wired: create/delete/clone/reset of agents (the widget edits an existing
   agent only). `role` is preserved on save but has no edit control (deliberately
   removed). Clearing `model` back to the adapter default isn't expressible — the
   upstream `update` treats an empty field as "leave unchanged".
 
-See `widgets/task-board.md` (the sibling pattern), `spec/json-ui-data.md`, and the
+See `widgets/task-board.md` (the sibling pattern), `spec/ui/data/data.md`, and the
 consuming control-plane app's render / resolve / host surface (the agent-detail
 container, shared host resolution, and task assignment) — now in fusedio/flow.

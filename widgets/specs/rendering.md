@@ -26,7 +26,7 @@ the node onto the component.
   directly. The exhaustive authoring-side hook contract lives in
   [`internal-requirements.md`](./internal-requirements.md) §2.
 - There is **no universal `visible` prop** / conditional-render gate — the Fused app
-  has none, so OpenFused dropped it to keep configs a strict paste-compatible subset
+  has none, so Fused dropped it to keep configs a strict paste-compatible subset
   ([`internal-requirements.md`](./internal-requirements.md) §3,
   [`authoring.md`](./authoring.md)).
 
@@ -50,7 +50,7 @@ The walk is recursive and registry-driven:
    box** (so layout is identical to rendering the node directly) carrying the
    `data-ofw-node="<path>"` attribute. The marker holds the node's stable path for
    page-level comment anchoring (see [`comments.md`](./comments.md); detail also in
-   `spec/json-ui-comments.md` §9).
+   `spec/ui/json-ui.md` §9).
 3. **Registry lookup.** The `registry` keyed by `node.type` (derived once
    from `componentDefs` — [`catalog.md`](./catalog.md),
    [`internal-requirements.md`](./internal-requirements.md) §1). A miss renders a
@@ -80,7 +80,7 @@ rows resolve by id, not by re-running SQL client-side:
 
 The stamping itself, the `{{ref}}` / `$param` grammar, and the DuckDB resolution are
 the **host's** contract — see [`authoring.md`](./authoring.md) (binding authoring view)
-and host `spec/json-ui-data.md`.
+and host `spec/ui/data/data.md`.
 
 ## 4. The host bridge at render time
 
@@ -106,12 +106,20 @@ contract-level summary; the exhaustive invariants live in
   re-read via `getSnapshot`. There is no canvas/UDF re-execution — a bound-param change
   re-resolves the dependent queries server-side via the data store.
 - **Data store** (`WidgetDataStore`). Holds resolver-produced rows keyed by `_queryId`,
-  inverts the planner `depMap` (`param → [qid]` ⇒ `qid → [params]`), and on a stale
-  read (`ensureFresh`) coalesces a **single-flight** POST to the widget-data endpoint:
+  inverts the planner `depMap` (`param → [qid]` ⇒ `qid → [params]`), and additionally
+  **tracks every query the config plans** — not just the param-driven ones that appear
+  in `depMap` — via `collectConfigQueryIds` (a config walk mirroring the Python
+  planner) or an explicit `queryIds` set (the canvas per-node store passes its OWN
+  node's ids so it never resolves another node's queries). On a stale read
+  (`ensureFresh`) it coalesces a **single-flight** POST to the widget-data endpoint:
   an in-flight fetch for the identical param snapshot is awaited (coalesce), a newer
   snapshot aborts the older one (supersede), and a stale response is dropped by a
-  snapshot-identity guard. A per-qid error surfaces in-card and **never blanks the
-  widget**. The `await` is what keeps the SDK hook's `loading` flag true through a
+  snapshot-identity guard. A query with **no resolved rows and no recorded error counts
+  as stale**, so it resolves once on first paint even with no `$param` deps — this is
+  what populates a **deployed** widget whose injected `data` was seeded empty (`{}`);
+  the POST then carries `only: [<unresolved qids>]`. A per-qid error surfaces in-card
+  and **never blanks the widget** (and an errored qid is not re-fetched on every
+  render). The `await` is what keeps the SDK hook's `loading` flag true through a
   refetch. First paint is aligned with the server resolve by `harvestInitialParams`
   (pre-order harvest of input `param`/`defaultValue` + the `__comments` seed).
 - **Action sink** (`ActionSinkContext`, `type ActionSink = (action, terminal) =>
@@ -121,7 +129,7 @@ contract-level summary; the exhaustive invariants live in
   clients; a submit press locks into its submitted state only on a `true` return.
   Default `null` → the button falls through to the unchanged session/parley routing
   (and the MCP-Apps no-op posture when neither is active). See host
-  `spec/json-ui-inbox.md` §4.
+  `spec/ui/json-ui.md` §4.
 
 ## 5. zod is inert at render
 
@@ -219,7 +227,7 @@ widget-data resolve proxy to obtain `{data, errors, depMap, config}`, render the
 
 - the consuming control-plane app's native render + per-project resolve daemon (and its
   render path: first paint, reactivity, routing) now lives in fusedio/flow;
-- host `spec/json-ui-data.md` — SQL resolution, the `{{ref}}`/`$param` grammar, the
+- host `spec/ui/data/data.md` — SQL resolution, the `{{ref}}`/`$param` grammar, the
   security boundary.
 
 ---
@@ -236,4 +244,4 @@ widget-data resolve proxy to obtain `{data, errors, depMap, config}`, render the
   `components.json` generation (the hard type gate).
 - [`comments.md`](./comments.md) — the comment overlay that consumes `[data-ofw-node]`.
 - Host: the consumer render + resolve daemon now lives in fusedio/flow;
-  `spec/json-ui-data.md` (SQL resolution + grammar + security boundary).
+  `spec/ui/data/data.md` (SQL resolution + grammar + security boundary).

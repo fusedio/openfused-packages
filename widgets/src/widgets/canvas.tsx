@@ -1,7 +1,7 @@
 // widgets/canvas.tsx — the registered `canvas` json-ui component.
 //
 // A free-form ReactFlow layout of widget nodes wired by edges that carry param
-// dataflow (spec/json-ui-canvas.md). This file is the THIN registration shim:
+// dataflow (spec/ui/data/canvas.md). This file is the THIN registration shim:
 // the React layer lives under `../canvas/*` (the renderer, node, edge, folder,
 // chrome, runtime, and the Phase-1 pure modules). It:
 //   - declares its props as `CanvasPropsSchema` (the Phase-1 Zod source of

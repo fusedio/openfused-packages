@@ -4,13 +4,13 @@ The **rendered overlay** that pins Figma-style comment threads onto widgets. Thi
 package half — pins, threads, anchoring, the param binding the renderer consumes. The
 behavioural/logic half — the `__comments` param-plane persistence semantics, the agent
 feedback loop, and normalization-as-contract — stays in the host spec
-[`../../../spec/json-ui-comments.md`](../../../spec/json-ui-comments.md). The split is
+[`../../../spec/ui/json-ui.md`](../../../spec/ui/json-ui.md). The split is
 load-bearing: **this file describes what is drawn; the host file describes what it means.**
 
 A comment is **just a page-level param** (`__comments`), so the overlay carries no transport
 of its own — it reads/writes one reactive param and the bridge fans the change out to the
 parley (→ agent) and URL-sync (→ human). See
-[`../../../spec/json-ui-comments.md`](../../../spec/json-ui-comments.md) §1, §4.
+[`../../../spec/ui/json-ui.md`](../../../spec/ui/json-ui.md) §1, §4.
 
 ---
 
@@ -91,7 +91,7 @@ chrome only, reduced-motion honored).
 
 `CanvasComment` carries exactly **one** anchor kind (validated by a zod schema; the
 data-model contract is host-side,
-[`../../../spec/json-ui-comments.md`](../../../spec/json-ui-comments.md) §2):
+[`../../../spec/ui/json-ui.md`](../../../spec/ui/json-ui.md) §2):
 
 | Anchor kind | Fields | Resolved by | Coordinate space |
 |---|---|---|---|
@@ -161,7 +161,7 @@ the hook returns `{ comments, commit }`.
 The full persistence contract — URL-sync (human durability) vs config-reseed (agent
 durability), the resolved-first URL soft-cap, why a comment change re-resolves nothing
 server-side — is host-side
-([`../../../spec/json-ui-comments.md`](../../../spec/json-ui-comments.md) §4).
+([`../../../spec/ui/json-ui.md`](../../../spec/ui/json-ui.md) §4).
 
 ---
 
@@ -188,7 +188,7 @@ The page layer's `CommentsLayer` wraps `commit` to drive the host feedback loop:
 
 The agent-side reading of this data (open = work queue; `anchorId`/`anchorPath` = scope
 pointer; resolve by pushing a config whose `props.comments` is the full updated array) is the
-host feedback loop, [`../../../spec/json-ui-comments.md`](../../../spec/json-ui-comments.md)
+host feedback loop, [`../../../spec/ui/json-ui.md`](../../../spec/ui/json-ui.md)
 §5 — the overlay surfaces it, it does not own it.
 
 ---
@@ -229,7 +229,7 @@ slot of `RenderTree` ([`./rendering.md`](./rendering.md)) — but portals its vi
   `{element}` contract, and `RenderTree`'s page-level `children` slot the page layer mounts into.
 - [`./surfaces.md`](./surfaces.md) — the package exports (`CommentsLayer`, the canvas overlay,
   `harvestInitialParams` / `mergeLiveComments` on `@fusedio/widgets/data-store`).
-- **Host (logic half):** [`../../../spec/json-ui-comments.md`](../../../spec/json-ui-comments.md)
+- **Host (logic half):** [`../../../spec/ui/json-ui.md`](../../../spec/ui/json-ui.md)
   — the `__comments` param-plane persistence (URL-sync vs config-reseed, the URL soft-cap),
   the data model + normalization-as-contract, and the agent feedback loop.
 - **Host (app render/resolve):** the consuming control-plane app's comment wiring +

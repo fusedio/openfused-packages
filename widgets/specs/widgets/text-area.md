@@ -13,7 +13,7 @@ A fan-out INPUT control for free-form multi-line text. An author reaches for `te
 - Form-aware: inside a `<Form>`, `useFusedParamWithForm` writes to the form's field store and DEFERS the broadcast until submit (treating `param` as the form field name); outside a form it behaves exactly like `useFusedParam`.
 - No-param mode: when `param` is omitted it works as a regular local text area (no broadcast); the element gets a stable id derived from the param name (or a `"local"` suffix when there is none).
 - SQL-safety: the value written is a scalar string, so it is safe to reference as `$param` in SQL (text substitution).
-- Deliberate behavioural subset vs the Fused app — NOT reproduced: `submitMode` (type|focus|submit), `maxLength`, `readOnly`, the inline Submit button / draft-commit state, and `useParamSubstitution` on `defaultValue`. OpenFused implements the debounced "type" subset only.
+- Deliberate behavioural subset vs the Fused app — NOT reproduced: `submitMode` (type|focus|submit), `maxLength`, `readOnly`, the inline Submit button / draft-commit state, and `useParamSubstitution` on `defaultValue`. Fused implements the debounced "type" subset only.
 - Not data-bound: there is no `sql` prop and no `_queryId`.
 - Renders everywhere (no native-app-only restriction).
 

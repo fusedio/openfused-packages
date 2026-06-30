@@ -3,7 +3,7 @@
 > Donut chart driven by DuckDB SQL query.
 
 ## Why
-A **display** component that paints a recharts donut (pie with a center hole) from the rows of a DuckDB query. An author reaches for it to show a part-of-whole / categorical breakdown — each row becomes one slice colored from a cyclic palette, with an optional center total, legend, and percentage labels. It is the RENAME/realignment of the legacy openfused `pie-chart` widget to the Fused application's `donut-chart`, and its prop set is a strict, paste-compatible **subset** of the app's `DonutChartPropsSchema` (identical names/types/semantics, never an openfused-only prop). It never runs SQL itself — rows arrive pre-resolved through `useDuckDbSqlQuery`; `writesParam: false` (a chart never writes a param).
+A **display** component that paints a recharts donut (pie with a center hole) from the rows of a DuckDB query. An author reaches for it to show a part-of-whole / categorical breakdown — each row becomes one slice colored from a cyclic palette, with an optional center total, legend, and percentage labels. It is the RENAME/realignment of the legacy fused `pie-chart` widget to the Fused application's `donut-chart`, and its prop set is a strict, paste-compatible **subset** of the app's `DonutChartPropsSchema` (identical names/types/semantics, never an openfused-only prop). It never runs SQL itself — rows arrive pre-resolved through `useDuckDbSqlQuery`; `writesParam: false` (a chart never writes a param).
 
 ## Expectation
 - Renders inside a chart-styled `Card` titled by `title`; the universal `style` prop is parsed and applied to the card.
@@ -16,7 +16,7 @@ A **display** component that paints a recharts donut (pie with a center hole) fr
 - `showLegend`: when true (and ≥1 slice), a scrollable column of legend rows (swatch + ellipsized label, `title` tooltip = `label: value`) below the chart. Row geometry is inline at a fixed 18px per row — there is no stylesheet rule for legend rows — to keep rows on separate baselines.
 - `animationMs`: animation is active only when `animationMs > 0` (`isAnimationActive`), with `animationDuration={animationMs}`; animation plays on data changes only, not on zoom/resize.
 - Default seeding: the schema `.default()`s (`innerRadius=56`, `outerRadius=88`, `showLegend=true`, `showLabels=false`, `showCenterTotal=true`, `animationMs=300`) are re-applied as JS destructure fallbacks because the render-time zod is stubbed and does not apply defaults at runtime.
-- Deliberate subset vs the app: drops the legacy pie-chart `query`/`css`/`x`/`y`/`height`/`donut` props (renamed/removed per the alignment map); rendering uses openfused's own lightweight card/loading/error/empty primitives + recharts rather than the app's baseui/shadcn loading-overlay/tooltip — identical CONFIG semantics, not identical rendering.
+- Deliberate subset vs the app: drops the legacy pie-chart `query`/`css`/`x`/`y`/`height`/`donut` props (renamed/removed per the alignment map); rendering uses fused's own lightweight card/loading/error/empty primitives + recharts rather than the app's baseui/shadcn loading-overlay/tooltip — identical CONFIG semantics, not identical rendering.
 - Renders everywhere (no map/native-only restriction).
 
 ## Exposed params
@@ -39,6 +39,6 @@ A **display** component that paints a recharts donut (pie with a center hole) fr
 - **Writes param:** no (`writesParam: false`; a chart never writes a param).
 
 ## Notes
-- Builds on openfused's local card/loading/error/empty primitives plus recharts `ResponsiveContainer`/`PieChart`/`Pie`/`Cell`/`Tooltip`.
+- Builds on fused's local card/loading/error/empty primitives plus recharts `ResponsiveContainer`/`PieChart`/`Pie`/`Cell`/`Tooltip`.
 - The module exposes a pure legend-row layout helper, the fixed legend row height, a legend-row sub-component, and the component's zod props schema.
 - Tooltip styling and palette resolve lazily from the theme's CSS custom properties on the client, with SSR-safe fallbacks when no document is present.

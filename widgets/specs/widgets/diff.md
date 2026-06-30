@@ -5,7 +5,7 @@
 ## Why
 A diff renderer for showing what changed between two pieces of text — built for
 **spec review** (the change between two markdown spec versions), but useful for any
-before/after text. It is an **OpenFused-owned primitive** (no app parity).
+before/after text. It is an **Fused-owned primitive** (no app parity).
 
 The rendering is the shared `DiffView` from `@fusedio/widgets`
 (`src/diff-view.tsx`) — the **same** renderer a consuming control-plane app's spec-review

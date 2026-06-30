@@ -10,7 +10,7 @@ It is deliberately split from the rest of the package spec set: the **catalog** 
 painted React (the `{element}` contract, the registry, `queryId` binding, the reactive
 flow) is in [`rendering.md`](./rendering.md); and the **SQL/data contract** the host
 runs (the `{{ref}}` / `$param` grammar, resolution, security) is the host's, in
-`spec/json-ui-data.md`. This file cross-links those; it does not restate them.
+`spec/ui/data/data.md`. This file cross-links those; it does not restate them.
 
 Source of these claims: `spec/ui/json-ui.md` (the authoring surface), the in-scope
 component narrative in [`catalog.md`](./catalog.md), and the package's renderer,
@@ -76,7 +76,7 @@ as the dashboard heading.
 
 The `dropdown` and `slider` **write** `$region` / `$min_revenue`; the `metric` and
 `sql-table` **read** them and re-resolve live when they change — without a model turn.
-See *Data binding* below and `spec/json-ui-data.md` § Reactivity.
+See *Data binding* below and `spec/ui/data/data.md` § Reactivity.
 
 ---
 
@@ -125,7 +125,7 @@ reach equal-width columns with `div` + `"flex: 1;"`. There is no layout prop bey
 
 **No conditional rendering — and why.** There is **no `visible` prop** and **no tab
 primitive**. The Fused application has neither and lints component props with `.strict()`,
-so a `visible` key would break paste-compatibility — OpenFused's component set is a strict
+so a `visible` key would break paste-compatibility — Fused's component set is a strict
 **subset** of the application's. Every node always renders. To change *what the user sees*,
 drive a query's result through its `$param` inputs (e.g. a `dropdown` that filters the SQL)
 rather than showing/hiding nodes. (Both the renderer and the universal-prop declaration
@@ -165,7 +165,7 @@ set (`dropdown` reads `value` / `label`; `text` reads a single cell).
 > The **full** SQL contract — the `{{ref}}` query-string grammar, the `$param` inline
 > text-substitution rules (app-compatible), UDF/`sql-runner` source resolution, the
 > `{columns, rows}` row envelope, run-fresh semantics, caching, and the hardened-DuckDB
-> security boundary — lives in the **host** spec `spec/json-ui-data.md`. It is **not**
+> security boundary — lives in the **host** spec `spec/ui/data/data.md`. It is **not**
 > restated here: the package authors against it but does not implement it (the host
 > resolves; the renderer only paints — [`rendering.md`](./rendering.md)).
 
@@ -195,7 +195,7 @@ authoring semantics.
   are ordinary params: they ride in every feedback payload automatically, and a *scalar*
   click param can drive other queries through `$param` (in-widget drill-down).
   **Array/object params must never be referenced in SQL** — `$param` is text substitution,
-  so only scalars are SQL-safe (`spec/json-ui-data.md`).
+  so only scalars are SQL-safe (`spec/ui/data/data.md`).
 - **`video-review`** — timestamped feedback on an agent-made video, built for the parley.
   It writes the human's open notes to `param` as an **array** of `{t, text}` objects, and
   QA verdicts on past rounds to `qaParam` as an object map — both non-scalars, **never**
@@ -204,7 +204,7 @@ authoring semantics.
 
 The exact prop schemas are component-owned (generated catalog — [`catalog.md`](./catalog.md));
 this section fixes only the cross-cutting semantics. `button`, `video-review`, and `canvas`
-are the three OpenFused-owned primitives **not** governed by app parity.
+are the three Fused-owned primitives **not** governed by app parity.
 
 ### `form` — submit-bundling
 
@@ -217,7 +217,7 @@ field store and broadcasts **on submit** (a descendant `button`), not while typi
   `param` individually.
 
 Unlike the Fused application, charts/tables inside a form update **on submit**, not live
-as you type — OpenFused has no client DuckDB to re-query mid-edit. Same config, same final
+as you type — Fused has no client DuckDB to re-query mid-edit. Same config, same final
 result, different timing ([`catalog.md`](./catalog.md); [`widgets/form.md`](./widgets/form.md)).
 
 ---
@@ -230,8 +230,8 @@ result, different timing ([`catalog.md`](./catalog.md); [`widgets/form.md`](./wi
 - **No inline data** — a data-bound node's only data source is its `props.sql`.
 - **No cross-tree param wiring outside `canvas`** — a widget tree sees only the `$param`s
   declared within itself; the dependency graph is local (`canvas` is the exception —
-  edges carry param dataflow between nodes; `spec/json-ui-canvas.md`).
-- **No SQL in the renderer** — SQL always resolves server-side (`spec/json-ui-data.md`).
+  edges carry param dataflow between nodes; `spec/ui/data/canvas.md`).
+- **No SQL in the renderer** — SQL always resolves server-side (`spec/ui/data/data.md`).
 
 ---
 
@@ -246,9 +246,9 @@ result, different timing ([`catalog.md`](./catalog.md); [`widgets/form.md`](./wi
   params), incl. [`button.md`](./widgets/button.md),
   [`video-review.md`](./widgets/video-review.md), and [`form.md`](./widgets/form.md).
 - [`authoring.md`](./authoring.md)'s host counterparts:
-  - `spec/json-ui-data.md` — the SQL `{{ref}}` / `$param` grammar, resolution, the row
+  - `spec/ui/data/data.md` — the SQL `{{ref}}` / `$param` grammar, resolution, the row
     envelope, run-fresh, the hardened-DuckDB boundary, and caching (the data half).
   - the consuming control-plane app's native render + per-project resolve daemon now
     lives in fusedio/flow.
-  - `spec/json-ui-local.md` — the local workspace + parley (`widget open` / `widget push`
+  - `spec/feedback/local.md` — the local workspace + parley (`widget open` / `widget push`
     / `widget watch`) that render the feedback surface above.

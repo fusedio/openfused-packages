@@ -14,7 +14,7 @@ A single-line text field — the canonical fan-out INPUT. An author reaches for 
 - **Default seeding:** broadcasting the default seeds `defaultValue` into the param on mount IFF no canvas value already exists. Empty-string defaults are guarded internally by the SDK and never broadcast.
 - **Debounce:** `debounceMs` when a number, else `300` (synthetic default; the prop is optional with no zod `.default`).
 - **No-param mode:** with `param` omitted/empty the SDK hook explicitly degrades to plain local state (no broadcast); the field still works as a regular input.
-- **Deliberate subset vs the app:** `submitMode` (type|focus|submit) is NOT reproduced — only the debounced "type" subset exists; a config with `submitMode=focus|submit` pastes without error but behaves as type-mode. The inline Submit button, draft/blur-commit state, and param-substitution of `$param`/`{{ref}}` references inside `defaultValue` are also out of scope. Form registration via `useFusedParamWithForm` IS reproduced. Legacy openfused renames: `default → defaultValue`, `debounce → debounceMs`.
+- **Deliberate subset vs the app:** `submitMode` (type|focus|submit) is NOT reproduced — only the debounced "type" subset exists; a config with `submitMode=focus|submit` pastes without error but behaves as type-mode. The inline Submit button, draft/blur-commit state, and param-substitution of `$param`/`{{ref}}` references inside `defaultValue` are also out of scope. Form registration via `useFusedParamWithForm` IS reproduced. Legacy fused renames: `default → defaultValue`, `debounce → debounceMs`.
 - Not data-bound: no `sql` prop, reads no result columns. Renders everywhere (no map/native-only restriction).
 
 ## Exposed params

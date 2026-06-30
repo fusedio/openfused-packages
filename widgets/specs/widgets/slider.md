@@ -16,7 +16,7 @@ An INPUT component: a numeric range control that broadcasts a `Number` to the pa
 - Seed semantics (`initIfAbsent`): `broadcastDefaultValue` is gated on `authoredDefault` — true ONLY when the raw `defaultValue` prop was actually present on the node. Zod's `.default(0)` makes the parsed value `0` even when omitted, so the seed is gated on the raw prop. Consequence: a slider WITHOUT an authored `defaultValue` reads the live param value but never broadcasts `0` into the param unintentionally; a slider WITH an authored `defaultValue` seeds it on mount iff the param has no existing canvas value. `seed` is `defaultValue` when numeric, else falls back to `min` (`lo`).
 - Value coercion: `current` is the live value when already a `number`; if non-null/non-undefined/non-empty it is `Number(value)`; otherwise it falls back to `min` (`lo`). `min`/`max`/`step` fall back to `0`/`100`/`1` respectively if not numeric.
 - The element carries a stable id derived from the param name (falling back to a "local" marker when no param is bound).
-- Deliberate behavioural subset vs the app: the app uses a shadcn Slider with a 300ms debounce; openfused does NOT reproduce that heavy UI or the debounce — only the PROP CONTRACT and the param-write semantics match. The dumb control lives in `@kit` (`SliderRange`); this file is the thin param-binding wrapper.
+- Deliberate behavioural subset vs the app: the app uses a shadcn Slider with a 300ms debounce; fused does NOT reproduce that heavy UI or the debounce — only the PROP CONTRACT and the param-write semantics match. The dumb control lives in `@kit` (`SliderRange`); this file is the thin param-binding wrapper.
 - Renders everywhere (not native-app-only; no map dependency).
 
 ## Exposed params

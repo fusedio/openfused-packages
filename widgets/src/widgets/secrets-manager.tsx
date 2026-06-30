@@ -8,14 +8,13 @@
 
 import { z } from "zod";
 import React from "react";
-import { Check, Copy, Eye, EyeOff, KeyRound, Trash2 } from "lucide-react";
 import {
   useFusedWidgetBridge,
   parseStyle,
   defineComponent,
   type ComponentRenderProps,
 } from "@fusedio/widget-sdk";
-import { Button, Input } from "@kit";
+import { Button, Input, Check, Copy, Eye, EyeOff, KeyRound, Trash2 } from "@kit";
 
 import { UNIVERSAL_PROPS } from "./_universal";
 import type { ComponentDef } from "./types";
@@ -29,7 +28,7 @@ function asStr(v: unknown): string {
   return v === null || v === undefined ? "" : String(v);
 }
 
-// The sanctioned in-UDF read path (spec/secrets.md, spec/sdk-openfused.md): the
+// The sanctioned in-UDF read path (spec/security/secrets.md, spec/runtime/sdk-openfused.md): the
 // injected `openfused` module's `get_secret`. The copy button hands the user the
 // exact expression to paste into a UDF, with the secret's own name filled in.
 // `JSON.stringify` doubles as a Python string literal for the name (same quoting +

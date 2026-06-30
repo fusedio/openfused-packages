@@ -3,7 +3,7 @@
 > Stacked area chart driven by DuckDB SQL query.
 
 ## Why
-A DISPLAY component that renders a recharts stacked area chart from a DuckDB query, for showing how multiple series contribute to a total over an ordered set of labels. The author reaches for it when they have a long/tidy `label`/`series`/`value` result and want each series painted as a stacked band. App-parity: a strict, paste-compatible SUBSET of the Fused application's `stacked-area-chart` (identical prop names/types/semantics; fewer props, never extra). It SUPERSEDES the legacy openfused wide-format `area-chart` — an intentional break (long/tidy input, unconditional stacking, container-driven sizing), not a clean superset.
+A DISPLAY component that renders a recharts stacked area chart from a DuckDB query, for showing how multiple series contribute to a total over an ordered set of labels. The author reaches for it when they have a long/tidy `label`/`series`/`value` result and want each series painted as a stacked band. App-parity: a strict, paste-compatible SUBSET of the Fused application's `stacked-area-chart` (identical prop names/types/semantics; fewer props, never extra). It SUPERSEDES the legacy fused wide-format `area-chart` — an intentional break (long/tidy input, unconditional stacking, container-driven sizing), not a clean superset.
 
 ## Expectation
 - Renders inside the shared `Card` chrome (with optional `title`); the chart body is a recharts `<AreaChart>` inside a `ResponsiveContainer` (`width="100%" height="100%"`) that fills its flex parent — no fixed height/width prop.
@@ -15,7 +15,7 @@ A DISPLAY component that renders a recharts stacked area chart from a DuckDB que
 - Y-axis: ticks formatted compactly (1.5K→"2K", 2.3M→"2.3M", 2.3B→"2.3B"); domain min = `yMin` if set else `0` when `beginAtZero` else `"auto"`; domain max = `yMax` if set else `"auto"`. Bottom margin = `bottomMargin ?? 6`.
 - A custom in-card tooltip shows per-series rows (color swatch + name + localized value) plus a computed Total; the recharts `Tooltip` has `cursor={false}` and zero animation. Area animation plays only when `animationMs > 0`, with `animationDuration = animationMs`.
 - State guards (all in-card via `EmptyState`/`LoadingState`/`ErrorState`, never blanking the dashboard): no `sql` → `EmptyState "No query"`; loading → `LoadingState`; error → `ErrorState(message)`; empty pivot (`chartData.length === 0`) → `EmptyState`.
-- Deliberate subset vs the app: drops the legacy openfused `x`, `y`, `height`, `stacked` props (no app equivalent); sizing is container-driven. Rendering parity is NOT required (this renderer uses lightweight Card/state helpers and a plain styled tooltip instead of baseui/shadcn) — only CONFIG parity is guaranteed.
+- Deliberate subset vs the app: drops the legacy fused `x`, `y`, `height`, `stacked` props (no app equivalent); sizing is container-driven. Rendering parity is NOT required (this renderer uses lightweight Card/state helpers and a plain styled tooltip instead of baseui/shadcn) — only CONFIG parity is guaranteed.
 - Renders EVERYWHERE (not a map widget; no native-app-only restriction).
 
 ## Exposed params

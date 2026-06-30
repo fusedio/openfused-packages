@@ -39,4 +39,4 @@ A data-bound display component for visualizing a single- or multi-series trend o
 
 ## Notes
 - ui-kit/render helpers: the shared `Card`, `LoadingState`, `ErrorState`, `EmptyState` chrome; chart from `recharts`; data via `@fusedio/widget-sdk` (`useDuckDbSqlQuery`, inline-style parsing, `defineComponent`, `ComponentRenderProps`).
-- `_queryId` is read off `element.props` (the existing openfused binding convention) and threaded into the SDK hook as `queryId`; `style` is likewise read off `element.props` per the org-wide css→style rename. `element` is never spread.
+- `_queryId` is read off `element.props` (the existing fused binding convention) and threaded into the SDK hook as `queryId`; `style` is likewise read off `element.props` per the org-wide css→style rename. `element` is never spread.

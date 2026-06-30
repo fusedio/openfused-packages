@@ -3,7 +3,7 @@
 > Dropdown that writes the chosen option value to a param; options may be static ({value, label}) or sourced from a DuckDB SQL query returning value/label columns.
 
 ## Why
-A single-select control that lets the human pick one option and broadcasts the chosen value to the param store, parameterizing downstream data-bound nodes. The author reaches for it to drive a `$param` filter (region, category, date bucket) from either a fixed list of choices or a dynamically-resolved one. Its ROLE is **input**. App-parity status: this is the OpenFused `select` renamed/re-aligned to the Fused application `dropdown` component — its prop contract is a strict, paste-compatible SUBSET of the app's `dropdown` (identical names/types/semantics, fewer props).
+A single-select control that lets the human pick one option and broadcasts the chosen value to the param store, parameterizing downstream data-bound nodes. The author reaches for it to drive a `$param` filter (region, category, date bucket) from either a fixed list of choices or a dynamically-resolved one. Its ROLE is **input**. App-parity status: this is the Fused `select` renamed/re-aligned to the Fused application `dropdown` component — its prop contract is a strict, paste-compatible SUBSET of the app's `dropdown` (identical names/types/semantics, fewer props).
 
 ## Expectation
 - Renders a Field shell (`label` above) wrapping ui-kit's Radix `Select` (`SelectTrigger`/`SelectValue`/`SelectContent`/`SelectItem`); each resolved option becomes a `SelectItem` keyed by its `value`, displaying its `label`.

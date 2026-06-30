@@ -1,6 +1,6 @@
 # `@fusedio/widgets` — module overview
 
-`@fusedio/widgets` is OpenFused's **JSON-UI render surface**: the one package that
+`@fusedio/widgets` is Fused's **JSON-UI render surface**: the one package that
 turns a JSON tree of `{type, props, children}` nodes into a live, data-bound React UI.
 It owns the component catalog, the registry/renderer that walks a config tree, the
 free-form canvas, the map renderers, the reactive client-side data/param machinery, and
@@ -17,7 +17,7 @@ static-ui/   → @fusedio/widgets
 `@fusedio/widgets` composes `ui-kit` (dumb shared primitives) and is consumed **as
 source** (no npm publish — `package.json` is `private`, `exports` point at `./src/*`) by:
 
-- **`widget-host/`** — the `openfused widget open`/parley viewer, which renders configs
+- **`widget-host/`** — the `fused widget open`/parley viewer, which renders configs
   **natively** (no iframe, no bundle). It is also consumed externally — by the standalone
   Flow control-plane app (`fusedio/flow`), which renders its dashboard natively the same way.
 - **`static-ui/`** — the standalone bundle host that esbuild-bundles the renderer into
@@ -32,7 +32,7 @@ split (`spec/ui/json-ui.md`):
 
 1. **One source per component.** A component is defined exactly once with
    `defineComponent({ component, props, description, hasChildren })` (from
-   `@fusedio/widget-sdk`) plus an OpenFused-local `writesParam` flag. From that one source
+   `@fusedio/widget-sdk`) plus an Fused-local `writesParam` flag. From that one source
    the package derives *both* the render registry *and* the generated `components.json`
    manifest — they cannot drift.
 
@@ -47,7 +47,7 @@ split (`spec/ui/json-ui.md`):
    server-side via the widget-data endpoint and swaps rows in place.
 
 The result is a **paste-compatible subset of the Fused application's json-ui components**
-(same type/prop names + semantics, fewer props, never extra), plus four OpenFused-owned
+(same type/prop names + semantics, fewer props, never extra), plus four Fused-owned
 primitives — `button`, `video-review`, `canvas`, and `checkbox-group` (the array-writing
 multi-select input) — that are not governed by app parity.
 
@@ -66,8 +66,8 @@ component). By role:
 - **Maps (native-app only; deployed bundle shows a placeholder):** `map`, `map-bounds`,
   `fused-map`.
 - **Source:** `sql-runner` (a named-query container; resolves once, feeds `{{name}}`).
-- **Feedback primitives (OpenFused-owned):** `button`, `video-review`.
-- **Task surface (OpenFused-owned; control-plane consumer surfaces only):** `task-board` (list +
+- **Feedback primitives (Fused-owned):** `button`, `video-review`.
+- **Task surface (Fused-owned; control-plane consumer surfaces only):** `task-board` (list +
   kanban of tasks, all controls inside, drag-to-change-status + create + cancel via the `udfs`
   write path). The control-plane consumer that renders it is external (Flow, `fusedio/flow`).
 
@@ -78,9 +78,9 @@ component exists, the behavioural *expectation*, and the *exposed params*.
 
 - It is the **render** half of JSON-UI. The **authoring grammar**, the SQL/data contract,
   and the viewing surfaces are specified at the repo level: `spec/ui/json-ui.md` (config
-  document + catalog + single source of truth), `spec/json-ui-data.md` (the `{{ref}}` /
-  `$param` grammar + the hardened-DuckDB resolver), `spec/json-ui-local.md` (the
-  `widget-host/` viewer + the parley). The OpenFused-owned render surfaces are the
+  document + catalog + single source of truth), `spec/ui/data/data.md` (the `{{ref}}` /
+  `$param` grammar + the hardened-DuckDB resolver), `spec/feedback/local.md` (the
+  `widget-host/` viewer + the parley). The Fused-owned render surfaces are the
   `widget-host/` viewer/parley (native React render) and the deployed serve plane (the
   frozen `widget.html` bundle); external consumers (the Flow control-plane app, `fusedio/flow`)
   render the same configs natively through the same package.

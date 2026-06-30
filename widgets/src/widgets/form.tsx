@@ -8,7 +8,7 @@
 //
 //   • In the APP, SQL runs in the browser, so a chart/table inside a form
 //     re-queries LIVE as you edit sibling fields. openfused has NO client
-//     DuckDB — all SQL resolves server-side (spec/json-ui-data.md) — so a
+//     DuckDB — all SQL resolves server-side (spec/ui/data/data.md) — so a
 //     "live" in-form query would need a server round-trip per keystroke, which
 //     defeats the point of a form. openfused therefore adopts SUBMIT-TO-APPLY
 //     semantics: field edits stay local until the user presses submit, at which

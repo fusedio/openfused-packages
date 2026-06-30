@@ -49,5 +49,5 @@ A data-bound display component (role: display / source) for showing categorical 
 
 ## Notes
 - Render behaviour ported from the app for parity (not props): a built-in 10-color series palette, compact tick formatting, and a local tooltip (the app uses baseui/shadcn + a glass loading overlay; here lightweight loading/error/empty states + the shared card chrome reproduce those states so one failing query never blanks the dashboard).
-- `barColor` is the openfused single-series fill prop mirroring the app's single-series color semantics; the app's purely-cosmetic extras are intentionally omitted (never extra).
+- `barColor` is the fused single-series fill prop mirroring the app's single-series color semantics; the app's purely-cosmetic extras are intentionally omitted (never extra).
 - Renders via recharts (`BarChart`, `Bar`, `XAxis`, `YAxis`, `CartesianGrid`, `Tooltip`, `Legend`, `LabelList`, `ResponsiveContainer`).

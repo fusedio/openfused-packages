@@ -6,8 +6,8 @@ describe intent and contracts; the package source implements them.
 
 > Scope note: this folder is the **package-local** spec. The repo-level JSON-UI specs own
 > the *authoring grammar*, the SQL/data contract, and the viewing surfaces:
-> `spec/ui/json-ui.md`, `spec/ui/ui-architecture.md`, `spec/json-ui-data.md`,
-> `spec/json-ui-local.md`, `spec/json-ui-canvas.md`. (The consuming control-plane app's
+> `spec/ui/json-ui.md`, `spec/ui/ui-architecture.md`, `spec/ui/data/data.md`,
+> `spec/feedback/local.md`, `spec/ui/data/canvas.md`. (The consuming control-plane app's
 > own native render/resolve daemon now lives in fusedio/flow.)
 
 ## Module specs
@@ -46,5 +46,5 @@ One spec per component type — **why** it exists, the behavioural **expectation
 **Source**
 - [`sql-runner`](./widgets/sql-runner.md)
 
-**Feedback primitives** (OpenFused-owned; not app parity)
+**Feedback primitives** (Fused-owned; not app parity)
 - [`button`](./widgets/button.md) · [`video-review`](./widgets/video-review.md)

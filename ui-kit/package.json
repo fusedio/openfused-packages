@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "OpenFused dumb-UI library — pure shadcn primitives + OKLCH design tokens. Consumed as source (no npm publish).",
+  "description": "Fused dumb-UI library — pure shadcn primitives + OKLCH design tokens. Consumed as source (no npm publish).",
   "exports": {
     ".": "./src/index.ts",
     "./index.css": "./src/index.css"

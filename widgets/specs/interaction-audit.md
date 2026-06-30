@@ -183,4 +183,4 @@ component type (§ catalog.md), each backed by minimal deterministic data (a tin
 in-repo parquet/inline rows) so the sweep is reproducible offline. Each widget is
 authored **twice**: once with NO optional props (the default-must-not-break case,
 Axis C) and once fully-propped. Data UDFs anchor assets via `OPENFUSED_PROJECT_ROOT`
-(spec/backends-local.md) — never a relative `./` path.
+(spec/backends/local.md) — never a relative `./` path.

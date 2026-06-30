@@ -1,0 +1,37 @@
+# widget-import-guard — source-side enforcement of the frozen-bundle import allowlist.
+#
+# The deployed serve plane serves widgets as ONE frozen, self-contained widget.html
+# (no Node/bundler/CDN at runtime). The `fused` repo builds that bundle from this
+# package's src/widgets/* under an import guard (fused/static-ui/build.mjs) that
+# admits only a fixed set of deps. That guard lives downstream, so a disallowed
+# import here used to surface only when someone bumped the submodule and rebuilt
+# the bundle. This job runs the SAME allowlist here, on every PR, so the drift
+# fails fast at the source instead of breaking the bundle later.
+#
+# The check is a zero-dependency Node script — no `pnpm install` (this repo has no
+# workspace root of its own; its workspace:* deps only resolve inside `fused`).
+name: widget-import-guard
+
+on:
+  pull_request:
+    paths:
+      - "widgets/src/**"
+      - "widgets/scripts/check-widget-imports.mjs"
+      - ".github/workflows/widget-import-guard.yml"
+  push:
+    branches: [main]
+    paths:
+      - "widgets/src/**"
+      - "widgets/scripts/check-widget-imports.mjs"
+      - ".github/workflows/widget-import-guard.yml"
+
+jobs:
+  widget-import-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Enforce widget-module import allowlist
+        run: node widgets/scripts/check-widget-imports.mjs

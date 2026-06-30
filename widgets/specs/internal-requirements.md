@@ -12,7 +12,7 @@ Every renderable component is defined **once** and only once.
 
 - A component module per `type` default-exports
   `{ ...defineComponent({ component, props, description, hasChildren }), writesParam }`
-  — the SDK's `CatalogComponentDefinition` plus the OpenFused-local `writesParam` flag
+  — the SDK's `CatalogComponentDefinition` plus the Fused-local `writesParam` flag
   (the package's `ComponentDef` shape).
 - The **catalog map** (`componentDefs`) is the type-string → `ComponentDef` record. Adding a
   component is a one-line edit there plus the new per-`type` component module.
@@ -54,23 +54,23 @@ component's defaults.
 
 - There is intentionally **no universal `visible` prop** and no conditional-render / tab
   primitive — the Fused app has neither and lints props with `.strict()`, so a `visible`
-  key would break paste-compatibility. OpenFused's component set is a strict **subset** of
+  key would break paste-compatibility. Fused's component set is a strict **subset** of
   the app's.
 
 ## 4. App parity (paste-compatibility)
 
-Each component (except the three OpenFused-owned primitives) must be a strict,
+Each component (except the three Fused-owned primitives) must be a strict,
 paste-compatible **subset** of the matching Fused application component: identical type +
 prop names + semantics, **fewer** props, **never** extra. Deliberate *behavioural* subsets
 (e.g. `text` renders a literal `value` as-authored rather than substituting inline
 `$param`/`{{udf}}`; map `param` emits a `"w,s,e,n"` string instead of the app's array) are
 allowed and are documented in the component's source header and per-widget spec.
 
-The three primitives **not** governed by app parity, owned by OpenFused spec:
+The three primitives **not** governed by app parity, owned by Fused spec:
 
 - `button` and `video-review` — the human's feedback/reply channel (`spec/ui/json-ui.md`
   § Actions & selection).
-- `canvas` — the free-form layout surface (`spec/json-ui-canvas.md`).
+- `canvas` — the free-form layout surface (`spec/ui/data/canvas.md`).
 
 ## 5. The `writesParam` flag (input contract)
 
@@ -159,7 +159,7 @@ without a model turn:
   what the server resolved.
 - **Action sink** (`ActionSink` / `ActionSinkContext`): an optional host-provided
   `(action, terminal) → accepted` handler that, when present, takes precedence over
-  session/parley routing for `button` presses (`spec/json-ui-inbox.md` §4).
+  session/parley routing for `button` presses (`spec/ui/json-ui.md` §4).
 
 ## 10. Heavy renderers stay node-importable / bundle-aware
 
@@ -172,9 +172,48 @@ without a model turn:
 - The canvas statically imports ReactFlow (`@xyflow/react`); the host bundles as a single
   inlined esbuild bundle (no code-splitting), so lazy-loading is deferred.
 
+### 10.1 The widget-module import allowlist (frozen-bundle guard)
+
+The deployed serve plane serves a widget as **one frozen, self-contained `widget.html`**
+(its Lambda has no Node, bundler, or CDN). The `fused` repo builds that bundle from
+`src/widgets/*` via esbuild under a **`widget-import-guard`** (`fused/static-ui/build.mjs`)
+that admits only a fixed set of imports, so a widget module can never silently drag an
+arbitrary or heavy dependency into the public bundle. A module under `src/widgets/*` may
+import only:
+
+- a fixed package allowlist — `react`, `react-dom`, `react-markdown`, `recharts`, `zod`,
+  `@fusedio/widget-sdk`, and the bounded per-widget runtime deps `@xyflow/react` (canvas)
+  and `@dnd-kit/{core,sortable,utilities}` (task-board);
+- **`@kit` / `@kit/*`** — the `ui-kit` dumb-UI library. **Icons come from `@kit`, never
+  `lucide-react` directly** (ui-kit re-exports a curated icon set from `@kit`; it already
+  depends on lucide transitively, so esbuild tree-shakes to only the icons used);
+- relative `./*` siblings, and the shared parents `../{static-bridge,data-store,render,css,
+  session,parley,action-sink,components/,canvas/,diff-view,markdown-view}`.
+
+Map widgets (`map`, `map-bounds`, `map-h3`, `fused-map`) are exempt — the build aliases
+them to the placeholder (§10) before the guard runs, so their `../maps/*` imports never
+enter the bundle.
+
+**The allowlist is owned here, not downstream.** The render surface lives in this repo, so
+the rule describing what it may import lives here too: `scripts/widget-import-allowlist.mjs`
+(`WIDGET_PKG_ALLOWLIST`, `KNOWN_PARENT_PREFIXES`, `MAP_PLACEHOLDER_MODULES`) is the **single
+source of truth**. Both enforcers read it — there is no second copy to keep in sync:
+
+- `scripts/check-widget-imports.mjs` (the `check:widget-imports` script, run by the
+  `widget-import-guard` GitHub Actions workflow on every PR here);
+- `fused/static-ui/build.mjs` (the esbuild `widget-import-guard` that builds `widget.html`),
+  which **imports** that file from the `packages` submodule rather than redefining the lists.
+
+Historically the guard existed only downstream in `fused`, so a disallowed import here broke
+nothing until someone bumped the submodule and rebuilt `widget.html`. Authoring the allowlist
+here — and failing the PR here — closes that gap. A new widget dependency is a deliberate,
+bounded addition in **one** place: `widget-import-allowlist.mjs`.
+
 ## 11. Tests & generation tooling
 
 - Unit/browser tests live beside the code; `vitest` runs the unit suite and a browser mode
   (Playwright-backed) runs the browser suite.
 - `pnpm --filter @fusedio/widgets generate` runs the generator; `pnpm … typecheck` /
   `test` / `test:browser` are the other scripts.
+- `pnpm --filter @fusedio/widgets check:widget-imports` runs the frozen-bundle import
+  guard (§10.1) — a zero-dependency Node script, also enforced in CI.

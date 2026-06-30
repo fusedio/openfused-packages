@@ -16,7 +16,7 @@
 // to declare itself (it would silently fail the server-side isInput contract).
 //
 // OUTPUT DIR is overridable via OPENFUSED_WIDGETS_OUT (default the committed
-// src/openfused/widgets dir). For the gate run it points at /tmp/ofw-gen so the
+// src/fused/agent_core/widgets dir). For the gate run it points at /tmp/ofw-gen so the
 // committed components.json is never touched.
 //
 // recharts mitigation: importing the barrel pulls bar-chart.tsx → `recharts`,
