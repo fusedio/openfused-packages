@@ -86,20 +86,26 @@ export function normalizeLang(input?: string | null): (typeof CODE_LANGS)[number
 // engine avoids the wasm fetch the default oniguruma engine needs — one less
 // async asset, and it handles every grammar in CODE_LANGS.
 type Highlighter = { codeToHtml: (code: string, opts: { lang: string; theme: string }) => string };
+// The shared highlighter: a one-time async load, then a synchronous instance.
+// `codeToHtml` is SYNCHRONOUS once shiki is loaded, so highlighting can run in
+// render and always reflect the current `code` — no stale-HTML window.
+let highlighterInstance: Highlighter | null = null;
 let highlighterPromise: Promise<Highlighter> | null = null;
 
-function getHighlighter(): Promise<Highlighter> {
+function loadHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
     highlighterPromise = (async () => {
       const [shiki, { createJavaScriptRegexEngine }] = await Promise.all([
         import("shiki"),
         import("shiki/engine/javascript"),
       ]);
-      return shiki.createHighlighter({
+      const hl = (await shiki.createHighlighter({
         themes: [THEME],
         langs: [...CODE_LANGS],
         engine: createJavaScriptRegexEngine(),
-      }) as unknown as Promise<Highlighter>;
+      })) as unknown as Highlighter;
+      highlighterInstance = hl;
+      return hl;
     })();
   }
   return highlighterPromise;
@@ -107,35 +113,41 @@ function getHighlighter(): Promise<Highlighter> {
 
 /**
  * Highlight `code` as `lang` (an already-normalized shiki grammar id, or null)
- * and return the shiki HTML, or null until it resolves / for no-lang / on error.
- * Shared by CodeBlock (read) and CodeEditor (the highlight layer behind the
- * textarea) so both use the one shiki singleton.
+ * and return the shiki HTML. Once the shared highlighter is loaded the result is
+ * computed synchronously from the CURRENT `code`/`lang` on every render, so it
+ * never lags behind a changing `code` (the prior bug: serving a stale prior
+ * highlight via `dangerouslySetInnerHTML`). The only async step is the one-time
+ * load; until it resolves — and for no-lang / on error — this returns null and
+ * the caller shows its plain-text fallback. Shared by CodeBlock (read) and
+ * CodeEditor (the highlight layer behind the textarea).
  */
 export function useHighlightedHtml(code: string, lang: string | null): string | null {
-  const [html, setHtml] = React.useState<string | null>(null);
+  // The singleton is null on first paint; re-render once it finishes loading.
+  const [loaded, setLoaded] = React.useState<boolean>(highlighterInstance !== null);
   React.useEffect(() => {
-    if (!lang) {
-      setHtml(null);
-      return;
-    }
+    if (!lang || highlighterInstance) return;
     let alive = true;
-    getHighlighter()
-      .then((hl) => {
-        if (!alive) return;
-        try {
-          setHtml(hl.codeToHtml(code ?? "", { lang, theme: THEME }));
-        } catch {
-          if (alive) setHtml(null); // grammar miss → plain fallback, never blank
-        }
+    loadHighlighter()
+      .then(() => {
+        if (alive) setLoaded(true);
       })
       .catch(() => {
-        if (alive) setHtml(null); // highlighter failed to load → plain fallback
+        /* load failed → stay on the plain fallback */
       });
     return () => {
       alive = false;
     };
-  }, [code, lang]);
-  return html;
+  }, [lang]);
+
+  return React.useMemo(() => {
+    if (!lang || !highlighterInstance) return null;
+    try {
+      return highlighterInstance.codeToHtml(code ?? "", { lang, theme: THEME });
+    } catch {
+      return null; // grammar miss → plain fallback (never stale, never blank)
+    }
+    // `loaded` participates so the first sync highlight runs once the singleton lands.
+  }, [code, lang, loaded]);
 }
 
 export interface CodeBlockProps {
