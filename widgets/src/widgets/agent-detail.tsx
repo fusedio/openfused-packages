@@ -74,6 +74,17 @@ interface AdapterOpt {
   models: { id: string; label?: string; default?: boolean }[];
 }
 
+// Reasoning-effort level — a required, non-null enum mirrored across every layer.
+// Unknown/empty values coerce to DEFAULT_EFFORT at each decode boundary.
+type EffortLevel = "low" | "medium" | "high" | "xhigh" | "max";
+const EFFORT_LEVELS: readonly EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
+const DEFAULT_EFFORT: EffortLevel = "high";
+function coerceEffort(v: unknown): EffortLevel {
+  return typeof v === "string" && (EFFORT_LEVELS as readonly string[]).includes(v)
+    ? (v as EffortLevel)
+    : DEFAULT_EFFORT;
+}
+
 interface Agent {
   id: string;
   slug: string;
@@ -83,6 +94,7 @@ interface Agent {
   description: string;
   adapter: string;
   model: string;
+  effort: EffortLevel;
   prompt: string;
   builtin: boolean;
   createdAt: string;
@@ -103,6 +115,7 @@ function toAgent(row: Record<string, unknown> | undefined): Agent | null {
     description: asStr(row.description),
     adapter: asStr(row.adapter),
     model: asStr(row.model),
+    effort: coerceEffort(row.effort),
     prompt: asStr(row.prompt),
     builtin: row.builtin === true || row.builtin === "true",
     createdAt: asStr(row.createdAt),
@@ -233,6 +246,7 @@ function AgentDetail({ element }: ComponentRenderProps<AgentDetailProps>) {
         description: m.description,
         adapter: m.adapter,
         model: m.model,
+        effort: m.effort,
         prompt: m.prompt,
       });
       if (execError) return false;
@@ -353,6 +367,7 @@ function OverviewTab({
   const [description, setDescription] = React.useState(agent.description);
   const [adapterType, setAdapterType] = React.useState(agent.adapter);
   const [model, setModel] = React.useState(agent.model ?? "");
+  const [effort, setEffort] = React.useState<EffortLevel>(agent.effort);
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
 
@@ -361,6 +376,7 @@ function OverviewTab({
     setDescription(agent.description);
     setAdapterType(agent.adapter);
     setModel(agent.model ?? "");
+    setEffort(agent.effort);
   }, [agent]);
   React.useEffect(reset, [reset]);
 
@@ -377,7 +393,8 @@ function OverviewTab({
     name.trim() !== agent.name ||
     description.trim() !== agent.description ||
     adapterType !== agent.adapter ||
-    (model || "") !== (agent.model || "");
+    (model || "") !== (agent.model || "") ||
+    effort !== agent.effort;
   const canSave = !!name.trim();
 
   const doSave = async () => {
@@ -388,6 +405,7 @@ function OverviewTab({
       description: description.trim(),
       adapter: adapterType,
       model,
+      effort,
     });
     setSaving(false);
     if (ok) setEditing(false);
@@ -409,6 +427,7 @@ function OverviewTab({
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-3">
           <Stat label="Adapter" value={agent.adapter} mono />
           <Stat label="Model" value={agent.model || "default"} mono />
+          <Stat label="Effort" value={agent.effort} mono />
           <Stat label="Runs" value={String(runsCount)} />
           <Stat label="Created" value={agent.createdAt ? timeAgo(agent.createdAt) : "—"} />
         </div>
@@ -463,6 +482,20 @@ function OverviewTab({
               {models.map((m) => (
                 <option key={m.id} value={m.id} className="bg-popover">
                   {m.label ?? m.id}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Effort</label>
+            <select
+              value={effort}
+              onChange={(e) => setEffort(e.target.value as EffortLevel)}
+              className={SELECT_CLASS}
+            >
+              {EFFORT_LEVELS.map((level) => (
+                <option key={level} value={level} className="bg-popover">
+                  {level}
                 </option>
               ))}
             </select>
