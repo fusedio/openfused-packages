@@ -187,3 +187,13 @@ export function deriveInitials(name: string): string {
   if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   return name.slice(0, 2).toUpperCase();
 }
+
+/**
+ * Human-readable model label for an agent. `model` is nullable/optional: an
+ * empty value means the agent inherits its adapter's default model, which the
+ * agent-detail card renders as "default" — mirror that so every surface agrees
+ * (twin of the app's `lib/agent-model.ts`). e.g. "sonnet-4.6", or "default".
+ */
+export function agentModelLabel(model: string | null | undefined): string {
+  return (model ?? "").trim() || "default";
+}
