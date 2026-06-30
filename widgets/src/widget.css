@@ -300,6 +300,13 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
 .ofw-code--editor.ofw-code--numbered .ofw-code__textarea {
   padding-left: calc(0.9em + 2.5ch + 1.4em);
 }
+/* The plain fallback layer (shown before shiki loads / for unknown langs) has no
+   `.line` gutter, so without matching left padding the indented textarea would
+   sit a gutter-width right of the fallback code. Indent it the same (an empty
+   gutter) so read text + caret align until the numbered highlight lands. */
+.ofw-code--editor.ofw-code--numbered .ofw-code__hl pre.ofw-code__raw {
+  padding-left: calc(0.9em + 2.5ch + 1.4em);
+}
 
 /* ---------------- In-card states ---------------- */
 .ofw-state {
