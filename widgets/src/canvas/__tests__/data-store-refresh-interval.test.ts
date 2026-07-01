@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { WidgetDataStore, collectRefreshIntervals } from "../../data-store";
-import { createParamsStore } from "../../static-bridge";
+import { createParamsStore, createStaticBridge } from "../../static-bridge";
+import {
+  createCanvasRuntime,
+  type CanvasDataInputs,
+} from "../canvas-data";
+import { createCanvasParamStore } from "../canvas-param-store";
+import type { CanvasNode } from "../canvas-types";
 
 /** Minimal stand-in for the Fetch `Response` the store reads (`ok` + `json()`). */
 function jsonResponse(body: unknown) {
@@ -517,5 +523,75 @@ describe("WidgetDataStore — refresh failure handling", () => {
     // No interval → today's behavior: rows blanked, error set.
     expect(entry.rows).toEqual([]);
     expect(entry.error).toBe("param fetch failed");
+  });
+});
+
+describe("createCanvasRuntime — lifecycle", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  /** A minimal base FusedWidgetBridge for the runtime to delegate to. */
+  function makeBaseBridge() {
+    const params = createParamsStore();
+    // The inner store is never exercised (the canvas builds per-node stores that
+    // shadow sql.query); it just satisfies createStaticBridge's shape.
+    const inner = new WidgetDataStore({ params });
+    return createStaticBridge({ store: inner, params });
+  }
+
+  it("dispose clears per-node timers but leaves the shared param store intact", async () => {
+    vi.useFakeTimers();
+    stubVisibility();
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ data: { q0: { columns: [], rows: [] } }, errors: {} }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const nodes: CanvasNode[] = [
+      {
+        id: "n1",
+        widget: {
+          type: "metric",
+          props: { _queryId: "q0", refreshInterval: 5000 },
+        },
+      },
+    ];
+    const store = createCanvasParamStore();
+    const inputs: CanvasDataInputs = {
+      config: {
+        type: "canvas",
+        props: {
+          nodes: [{ widget: nodes[0].widget }],
+        },
+      },
+      data: { q0: { columns: [], rows: [] } },
+      resolveUrl: "/data",
+      baseBridge: makeBaseBridge(),
+    };
+    const runtime = createCanvasRuntime(
+      nodes,
+      [],
+      inputs,
+      { onStartLoading: () => {}, onStopLoading: () => {} },
+      undefined,
+      store,
+    );
+
+    // A user selection lives in the shared canvas param store.
+    store.set("region", "eu", "n1", 1);
+
+    runtime.start();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // timer fired once
+
+    runtime.dispose();
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // no further ticks after dispose
+
+    // The shared param store must SURVIVE dispose (reused across rebuilds).
+    expect(store.getSnapshotFiltered("region", ["n1"])).toBe("eu");
   });
 });
