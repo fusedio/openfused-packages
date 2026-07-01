@@ -275,9 +275,13 @@ function MultiChoice({
     () => paramArray.filter((v) => optionValues.has(v)),
     [paramArray, optionValues],
   );
+  // Only adopt an off-menu param value as the "other" text when the author
+  // actually enabled the Other control. With allowOther=false the control is
+  // hidden, so seeding otherOn/otherText from a stray off-menu string would let
+  // a checkbox toggle silently re-broadcast an invisible value.
   const initialOther = React.useMemo(
-    () => paramArray.find((v) => !optionValues.has(v)) ?? "",
-    [paramArray, optionValues],
+    () => (allowOther ? (paramArray.find((v) => !optionValues.has(v)) ?? "") : ""),
+    [allowOther, paramArray, optionValues],
   );
 
   const [ticked, setTicked] = React.useState<string[]>(() =>
@@ -288,7 +292,9 @@ function MultiChoice({
 
   const broadcast = (nextTicked: string[], nextOtherOn: boolean, nextOtherText: string) => {
     const out = [...nextTicked];
-    if (nextOtherOn && nextOtherText.trim() !== "") out.push(nextOtherText);
+    // Never append off-menu text unless the Other control is enabled — otherwise
+    // the param carries a value the hidden UI can't show or clear.
+    if (allowOther && nextOtherOn && nextOtherText.trim() !== "") out.push(nextOtherText);
     setValue(out);
   };
 
