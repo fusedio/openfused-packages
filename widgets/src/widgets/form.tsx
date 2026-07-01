@@ -65,6 +65,9 @@ function useIsLoading(): boolean {
   const [loading, setLoading] = React.useState(false);
   React.useEffect(() => {
     if (!bus) return;
+    // Sync any already-in-flight state at mount: a query started before this form
+    // mounted (or before subscribe) won't fire a fresh notify, so read once here.
+    setLoading(bus.isLoading());
     return bus.subscribe(() => setLoading(bus.isLoading()));
   }, [bus]);
   return loading;

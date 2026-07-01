@@ -31,4 +31,19 @@ describe("renderCheck", () => {
     };
     expect(renderCheck(config)).toEqual({ ok: true });
   });
+
+  it("FAILS (ok:false) when a node throws during render — the whole point of the check", () => {
+    const config: UINode = {
+      type: "div",
+      // An array is `typeof "object"` but Array.isArray excludes it from
+      // coerceStyleProp, so it reaches parseStyle as a non-string and `.split`
+      // throws — a render-time crash `POST /api/exec/widget` (resolve-only) is
+      // blind to. This asserts the harness actually surfaces such a throw.
+      props: { style: ["display:flex"] as unknown as string },
+      children: [{ type: "text", props: { value: "hi" } }],
+    };
+    const result = renderCheck(config);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(typeof result.error).toBe("string");
+  });
 });
