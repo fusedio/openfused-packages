@@ -184,9 +184,12 @@ function SingleChoice({
     const cur = String(value ?? "");
     if (!initRef.current) {
       initRef.current = true;
-      // One-shot seed of the param from defaultValue when nothing exists yet, so a
-      // pre-filled Other/option is captured on submit even if untouched.
-      if (cur === "" && defaultValue && (optionValues.has(defaultValue) || allowOther)) {
+      // One-shot seed of the param from defaultValue when nothing exists yet, so an
+      // untouched pre-filled control is captured on submit. ANY non-empty
+      // defaultValue is seeded — it always renders selected (a listed option, the
+      // Other field, or a synthetic off-menu radio), so the param must match or a
+      // control that looks answered would submit empty.
+      if (cur === "" && defaultValue) {
         commit(defaultValue);
       } else {
         syncedRef.current = cur;
