@@ -68,19 +68,24 @@ function CollapsibleWidget({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
-      className="ofw-collapsible overflow-hidden rounded-md border border-border"
+      className="ofw-collapsible overflow-hidden rounded-md border border-border bg-card shadow-sm"
       style={parseStyle(style)}
     >
-      <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-accent/40">
+      <CollapsibleTrigger
+        className={
+          "flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:bg-accent/60 " +
+          (open ? "border-b border-border bg-accent/30" : "")
+        }
+      >
         <ChevronRight
           className={
-            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 " +
+            "h-4 w-4 shrink-0 text-foreground/70 transition-transform duration-150 " +
             (open ? "rotate-90" : "")
           }
         />
         <span className="flex-1">{summary}</span>
       </CollapsibleTrigger>
-      <CollapsibleContent className="border-t border-border px-3 py-3">
+      <CollapsibleContent className="px-3.5 py-3">
         <div className="ofw-collapsible__panel flex flex-col gap-3">
           {children}
         </div>

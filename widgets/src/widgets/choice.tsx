@@ -106,6 +106,12 @@ export const choiceProps = z
       .optional()
       .default("Type your answer…")
       .describe("Placeholder for the revealed free-text field."),
+    disabled: z
+      .boolean()
+      .optional()
+      .describe(
+        "Render the question read-only — the frozen answered-card view sets this so a resolved answer can be seen but not changed.",
+      ),
   })
   .extend(UNIVERSAL_PROPS.shape);
 
@@ -122,6 +128,7 @@ function SingleChoice({
   otherPlaceholder,
   fieldStyle,
   id,
+  disabled,
 }: {
   label?: string;
   param?: string;
@@ -132,6 +139,7 @@ function SingleChoice({
   otherPlaceholder: string;
   fieldStyle: React.CSSProperties;
   id: string;
+  disabled?: boolean;
 }) {
   const { value, setValue } = useFusedParamWithForm({
     param,
@@ -205,6 +213,7 @@ function SingleChoice({
         value={selKey}
         onValueChange={onPick}
         options={radioOptions}
+        disabled={disabled}
       />
       {allowOther && selKey === OTHER_KEY ? (
         <Input
@@ -213,6 +222,7 @@ function SingleChoice({
           placeholder={otherPlaceholder}
           onChange={(e) => onOtherText(e.target.value)}
           aria-label={`${otherLabel}: your answer`}
+          disabled={disabled}
         />
       ) : null}
     </Field>
@@ -230,6 +240,7 @@ function MultiChoice({
   otherPlaceholder,
   fieldStyle,
   id,
+  disabled,
 }: {
   label?: string;
   param?: string;
@@ -240,6 +251,7 @@ function MultiChoice({
   otherPlaceholder: string;
   fieldStyle: React.CSSProperties;
   id: string;
+  disabled?: boolean;
 }) {
   // ARRAY param binding — the checkbox-group / sql-table selection pattern.
   const { value, setValue } = useFusedParam<string[]>({
@@ -324,6 +336,7 @@ function MultiChoice({
                 id={rowId}
                 checked={ticked.includes(o.value)}
                 onCheckedChange={() => toggle(o.value)}
+                disabled={disabled}
               />
               <Label htmlFor={rowId} className="cursor-pointer font-normal">
                 {o.label}
@@ -333,7 +346,12 @@ function MultiChoice({
         })}
         {allowOther ? (
           <div className="flex items-center gap-2">
-            <Checkbox id={`${id}-other`} checked={otherOn} onCheckedChange={toggleOther} />
+            <Checkbox
+              id={`${id}-other`}
+              checked={otherOn}
+              onCheckedChange={toggleOther}
+              disabled={disabled}
+            />
             <Label htmlFor={`${id}-other`} className="cursor-pointer font-normal">
               {otherLabel}
             </Label>
@@ -347,6 +365,7 @@ function MultiChoice({
           placeholder={otherPlaceholder}
           onChange={(e) => onOtherText(e.target.value)}
           aria-label={`${otherLabel}: your answer`}
+          disabled={disabled}
         />
       ) : null}
     </Field>
@@ -365,6 +384,7 @@ function Choice({ element }: ComponentRenderProps<ChoiceProps>) {
     allowOther = false,
     otherLabel = "Other",
     otherPlaceholder = "Type your answer…",
+    disabled = false,
   } = element.props;
   const style = (element.props as { style?: string }).style;
   const fieldStyle = parseStyle(style);
@@ -385,6 +405,7 @@ function Choice({ element }: ComponentRenderProps<ChoiceProps>) {
       otherPlaceholder={otherPlaceholder}
       fieldStyle={fieldStyle}
       id={id}
+      disabled={disabled}
     />
   ) : (
     <SingleChoice
@@ -397,6 +418,7 @@ function Choice({ element }: ComponentRenderProps<ChoiceProps>) {
       otherPlaceholder={otherPlaceholder}
       fieldStyle={fieldStyle}
       id={id}
+      disabled={disabled}
     />
   );
 }
