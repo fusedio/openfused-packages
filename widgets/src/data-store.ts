@@ -407,6 +407,42 @@ export class WidgetDataStore {
     promise: Promise<void>;
   } | null = null;
 
+  /**
+   * Qids force-marked stale by a timer tick (or visibility resume). `isStale`
+   * returns true for a forced qid regardless of params/rows; `applyResponse` /
+   * `applyEndpointError` clear it once the fetch is handled so it doesn't loop.
+   */
+  private forced = new Set<string>();
+
+  /** Per-interval-qid `setTimeout` handle. Single-shot, rescheduled each tick. */
+  private timers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /** Set once `dispose()` runs; guards every reschedule path. */
+  private disposed = false;
+
+  /** True while the page is hidden — timers are cleared and not rescheduled. */
+  private hidden = false;
+
+  /** True once `start()` has wired timers + the visibility listener (idempotent). */
+  private started = false;
+
+  /** Bound `visibilitychange` handler, retained so `dispose` can remove it. */
+  private readonly onVisibilityChange = (): void => {
+    if (this.disposed) return;
+    const state =
+      typeof document !== "undefined" ? document.visibilityState : "visible";
+    if (state === "hidden") {
+      this.hidden = true;
+      this.clearTimers();
+    } else {
+      this.hidden = false;
+      // Resume: refetch every interval qid once immediately, then reschedule.
+      for (const qid of Object.keys(this.refreshIntervals)) this.forced.add(qid);
+      void this.refetchStale();
+      for (const qid of Object.keys(this.refreshIntervals)) this.scheduleTimer(qid);
+    }
+  };
+
   constructor(options: WidgetDataStoreOptions) {
     this.data = { ...(options.data ?? {}) };
     this.errors = { ...(options.errors ?? {}) };
@@ -503,6 +539,10 @@ export class WidgetDataStore {
 
   /** A qid is stale if its current param values differ from the backing rows'. */
   private isStale(qid: string): boolean {
+    // Force-stale: a timer tick / visibility-resume marks the qid so it
+    // re-resolves even when its params are unchanged (the whole point of an
+    // interval refetch). Cleared in applyResponse / applyEndpointError.
+    if (this.forced.has(qid)) return true;
     // Fetch-on-mount: a query with no resolved rows AND no recorded error has
     // never been resolved, so it is stale regardless of params. This is what
     // makes a param-free query resolve on first paint when `data` was seeded
@@ -686,6 +726,13 @@ export class WidgetDataStore {
       this.paramSnapshotKey[qid] = snapshotKey(
         this.restrictToQid(qid, fullSnapshot),
       );
+      // A forced (timer-driven) fetch is now handled — clear it so isStale
+      // stops returning true for this qid.
+      this.forced.delete(qid);
+      // Reset the refetch clock on EVERY successful resolve (timer- or
+      // param/write-driven) so the next tick lands a full interval after the
+      // most recent fetch — no matter what triggered it.
+      if (qid in this.refreshIntervals) this.scheduleTimer(qid);
     }
   }
 
@@ -707,6 +754,81 @@ export class WidgetDataStore {
       this.paramSnapshotKey[qid] = snapshotKey(
         this.restrictToQid(qid, fullSnapshot),
       );
+      // Clear the forced flag so a failed tick doesn't loop; the failure-path
+      // refinement (e.g. keeping prior rows) is a later task.
+      this.forced.delete(qid);
     }
+  }
+
+  /**
+   * Start the interval-refetch timers and the page-visibility wiring.
+   *
+   * No-op without a `resolveUrl` (the read-only sandbox can't re-resolve) and
+   * idempotent (a second call doesn't double-schedule). Does NOT fetch
+   * immediately — it only schedules timers; the sole immediate refetch happens
+   * on a visibility hidden→visible transition. (The store is disposed+restarted
+   * on every host rebuild, so a fetch-on-start would turn unrelated rebuilds
+   * into a refetch storm.)
+   */
+  start(): void {
+    if (!this.resolveUrl || this.started || this.disposed) return;
+    this.started = true;
+    for (const qid of Object.keys(this.refreshIntervals)) this.scheduleTimer(qid);
+    if (
+      typeof document !== "undefined" &&
+      typeof document.addEventListener === "function"
+    ) {
+      document.addEventListener("visibilitychange", this.onVisibilityChange);
+    }
+  }
+
+  /** Clear all timers and remove the visibility listener; guards reschedules. */
+  dispose(): void {
+    this.disposed = true;
+    this.clearTimers();
+    if (
+      typeof document !== "undefined" &&
+      typeof document.removeEventListener === "function"
+    ) {
+      document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    }
+  }
+
+  /** Clear every pending timer (keeps `refreshIntervals` so resume can reschedule). */
+  private clearTimers(): void {
+    for (const handle of this.timers.values()) clearTimeout(handle);
+    this.timers.clear();
+  }
+
+  /**
+   * (Re)schedule a single qid's timer: clear any pending one and set a fresh
+   * single-shot `setTimeout` for its interval. A tick force-marks the qid,
+   * runs the shared coalesced refetch, and reschedules — unless disposed or
+   * hidden. Never schedules for a qid without a configured interval.
+   */
+  private scheduleTimer(qid: string): void {
+    if (this.disposed || this.hidden) return;
+    const interval = this.refreshIntervals[qid];
+    if (interval === undefined) return;
+    const existing = this.timers.get(qid);
+    if (existing !== undefined) clearTimeout(existing);
+    const handle = setTimeout(() => {
+      void this.tick(qid);
+    }, interval);
+    this.timers.set(qid, handle);
+  }
+
+  /**
+   * One timer tick: force the qid stale, run the shared single-flight refetch
+   * (its `only:` scoping + coalescing + supersede-abort all apply), then
+   * reschedule. `applyResponse` already reschedules on success; this reschedule
+   * covers the paths where no successful apply ran (e.g. coalesced-away or
+   * errored) so the cadence never stalls. Guarded on `!disposed && !hidden`.
+   */
+  private async tick(qid: string): Promise<void> {
+    if (this.disposed || this.hidden) return;
+    this.forced.add(qid);
+    await this.refetchStale();
+    if (!this.disposed && !this.hidden) this.scheduleTimer(qid);
   }
 }

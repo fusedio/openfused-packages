@@ -1,7 +1,45 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { WidgetDataStore, collectRefreshIntervals } from "../../data-store";
 import { createParamsStore } from "../../static-bridge";
+
+/** Minimal stand-in for the Fetch `Response` the store reads (`ok` + `json()`). */
+function jsonResponse(body: unknown) {
+  return { ok: true, status: 200, json: async () => body };
+}
+
+/** Parse the JSON body of the Nth fetch call (the resolve POST). */
+function fetchBody(
+  mock: ReturnType<typeof vi.fn>,
+  n = 0,
+): Record<string, unknown> {
+  const init = mock.mock.calls[n][1] as RequestInit;
+  return JSON.parse(init.body as string);
+}
+
+/**
+ * Stubbed `document` visibility surface: tracks listeners so a test can flip
+ * `visibilityState` and dispatch a `visibilitychange` event synchronously.
+ */
+function stubVisibility(initial: "visible" | "hidden" = "visible") {
+  const listeners = new Set<() => void>();
+  const doc = {
+    visibilityState: initial,
+    addEventListener: (type: string, fn: () => void) => {
+      if (type === "visibilitychange") listeners.add(fn);
+    },
+    removeEventListener: (type: string, fn: () => void) => {
+      if (type === "visibilitychange") listeners.delete(fn);
+    },
+  };
+  const set = (state: "visible" | "hidden") => {
+    doc.visibilityState = state;
+    for (const fn of [...listeners]) fn();
+  };
+  const listenerCount = () => listeners.size;
+  vi.stubGlobal("document", doc);
+  return { set, listenerCount };
+}
 
 describe("collectRefreshIntervals", () => {
   it("harvests a node's refreshInterval keyed by its _queryId", () => {
@@ -121,5 +159,195 @@ describe("WidgetDataStore — refreshIntervalFor", () => {
     expect(store.refreshIntervalFor("q0")).toBe(5000);
     // q1 belongs to another node — this store must not own its interval.
     expect(store.refreshIntervalFor("q1")).toBeUndefined();
+  });
+});
+
+describe("WidgetDataStore — interval-refetch timer", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("fires one scoped refetch per interval tick and swaps rows", async () => {
+    vi.useFakeTimers();
+    stubVisibility();
+    let value = 1;
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        data: { q0: { columns: ["v"], rows: [{ v: value++ }] } },
+        errors: {},
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = new WidgetDataStore({
+      data: { q0: { columns: ["v"], rows: [{ v: 0 }] } },
+      resolveUrl: "/data",
+      config: { type: "metric", props: { _queryId: "q0", refreshInterval: 5000 } },
+      params: createParamsStore(),
+    });
+    store.start();
+
+    // start() does NOT fetch immediately.
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchBody(fetchMock, 0).only).toEqual(["q0"]);
+    expect((await store.ensureFresh("q0")).rows).toEqual([{ v: 1 }]);
+
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    store.dispose();
+  });
+
+  it("ticks two qids independently at their own cadences", async () => {
+    vi.useFakeTimers();
+    stubVisibility();
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ data: {}, errors: {} }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = new WidgetDataStore({
+      data: { fast: { columns: [], rows: [] }, slow: { columns: [], rows: [] } },
+      resolveUrl: "/data",
+      config: {
+        type: "canvas",
+        props: {
+          nodes: [
+            { widget: { type: "metric", props: { _queryId: "fast", refreshInterval: 2000 } } },
+            { widget: { type: "metric", props: { _queryId: "slow", refreshInterval: 5000 } } },
+          ],
+        },
+      },
+      params: createParamsStore(),
+    });
+    store.start();
+
+    await vi.advanceTimersByTimeAsync(2000); // t=2000: fast ticks
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchBody(fetchMock, 0).only).toEqual(["fast"]);
+
+    await vi.advanceTimersByTimeAsync(2000); // t=4000: fast again
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchBody(fetchMock, 1).only).toEqual(["fast"]);
+
+    await vi.advanceTimersByTimeAsync(1000); // t=5000: slow ticks
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchBody(fetchMock, 2).only).toEqual(["slow"]);
+
+    store.dispose();
+  });
+
+  it("resets the clock when a param-driven refetch lands", async () => {
+    vi.useFakeTimers();
+    stubVisibility();
+    const params = createParamsStore();
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ data: { q0: { columns: [], rows: [] } }, errors: {} }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = new WidgetDataStore({
+      data: { q0: { columns: [], rows: [{ v: 0 }] } },
+      depMap: { region: ["q0"] },
+      resolveUrl: "/data",
+      config: { type: "metric", props: { _queryId: "q0", refreshInterval: 5000 } },
+      harvestedParams: { region: "us" },
+      params,
+    });
+    store.start();
+
+    // t=3000: change a param → ensureFresh refetches (resets clock).
+    await vi.advanceTimersByTimeAsync(3000);
+    params.set("region", "eu");
+    await store.ensureFresh("q0");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Original schedule would tick at t=5000 (2000ms from now). It must NOT.
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // A full interval after the param fetch (t=8000) → the timer fires.
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    store.dispose();
+  });
+
+  it("pauses when hidden and refetches once + resumes when visible", async () => {
+    vi.useFakeTimers();
+    const vis = stubVisibility("visible");
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ data: { q0: { columns: [], rows: [] } }, errors: {} }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = new WidgetDataStore({
+      data: { q0: { columns: [], rows: [] } },
+      resolveUrl: "/data",
+      config: { type: "metric", props: { _queryId: "q0", refreshInterval: 5000 } },
+      params: createParamsStore(),
+    });
+    store.start();
+
+    vis.set("hidden");
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    vis.set("visible");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // one immediate refetch
+
+    await vi.advanceTimersByTimeAsync(5000); // schedule resumed
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    store.dispose();
+  });
+
+  it("dispose clears timers and removes the visibility listener", async () => {
+    vi.useFakeTimers();
+    const vis = stubVisibility();
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ data: { q0: { columns: [], rows: [] } }, errors: {} }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = new WidgetDataStore({
+      data: { q0: { columns: [], rows: [] } },
+      resolveUrl: "/data",
+      config: { type: "metric", props: { _queryId: "q0", refreshInterval: 5000 } },
+      params: createParamsStore(),
+    });
+    store.start();
+    expect(vis.listenerCount()).toBe(1);
+
+    store.dispose();
+    expect(vis.listenerCount()).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("start() is a no-op when resolveUrl is unset (read-only sandbox)", async () => {
+    vi.useFakeTimers();
+    stubVisibility();
+    const fetchMock = vi.fn(async () => jsonResponse({ data: {}, errors: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = new WidgetDataStore({
+      data: { q0: { columns: [], rows: [] } },
+      config: { type: "metric", props: { _queryId: "q0", refreshInterval: 5000 } },
+      params: createParamsStore(),
+    });
+    store.start();
+
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    store.dispose();
   });
 });
