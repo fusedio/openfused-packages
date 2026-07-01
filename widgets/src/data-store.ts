@@ -581,15 +581,19 @@ export class WidgetDataStore {
       const error = queryId != null ? this.errors[queryId] ?? null : null;
       return { rows: [], columns: [], ...(error ? { error } : {}) };
     }
-    // A live source that failed a refetch keeps its last-good rows AND carries a
-    // transient error indicator (applyEndpointError sets errors[qid] without
-    // blanking rows) — surface both so the widget can show stale-with-error.
+    const rows = entry.rows ?? [];
+    const columns = entry.columns ?? [];
+    // A live source that failed a refetch keeps its last-good rows and holds a
+    // transient error INTERNALLY (errors[qid]) — but the pinned SDK hook
+    // (useDuckDbSqlQuery, 0.4.0) discards rows whenever `error` is truthy. So
+    // when we have non-empty rows we must NOT surface the error: keeping the
+    // data on screen wins over a visible error badge. The error still surfaces
+    // for the blank cases (empty/absent rows: non-interval failures and
+    // interval-first-fetch failures). A visible stale/error indicator alongside
+    // kept rows is deferred — it needs an SDK affordance (see journal).
+    if (rows.length > 0) return { rows, columns };
     const error = queryId != null ? this.errors[queryId] : undefined;
-    return {
-      rows: entry.rows ?? [],
-      columns: entry.columns ?? [],
-      ...(error ? { error } : {}),
-    };
+    return { rows, columns, ...(error ? { error } : {}) };
   }
 
   /**

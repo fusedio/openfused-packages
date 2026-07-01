@@ -384,13 +384,15 @@ describe("WidgetDataStore — refresh failure handling", () => {
     await vi.advanceTimersByTimeAsync(5000);
     expect((await store.ensureFresh("q0")).rows).toEqual([{ v: 1 }]);
 
-    // Next tick fails: last-good rows kept, error surfaced, no blanking.
+    // Next tick fails: last-good rows kept and stay VISIBLE — no `error` field
+    // leaks to the SDK hook (which would blank the rows). The failure is
+    // observable only via the backed-off retry timing below.
     mode = "fail";
     await vi.advanceTimersByTimeAsync(5000);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const afterFail = await store.ensureFresh("q0");
     expect(afterFail.rows).toEqual([{ v: 1 }]); // last-good, not []
-    expect(afterFail.error).toBe("network down");
+    expect(afterFail.error).toBeUndefined(); // rows stay visible
 
     // Backoff: interval (5000) does NOT retry; interval*2 (10000) does.
     await vi.advanceTimersByTimeAsync(5000);
@@ -415,6 +417,57 @@ describe("WidgetDataStore — refresh failure handling", () => {
     // Normal 5000 cadence restored (no more backoff).
     await vi.advanceTimersByTimeAsync(5000);
     expect(fetchMock).toHaveBeenCalledTimes(callsAtRecovery + 1);
+
+    store.dispose();
+  });
+
+  it("a failed param-driven refetch does NOT reset an active backoff (only success does)", async () => {
+    vi.useFakeTimers();
+    stubVisibility();
+    const params = createParamsStore();
+    let mode: "ok" | "fail" = "ok";
+    const fetchMock = vi.fn(async () => {
+      if (mode === "fail") throw new Error("down");
+      return jsonResponse({
+        data: { q0: { columns: ["v"], rows: [{ v: 1 }] } },
+        errors: {},
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = new WidgetDataStore({
+      data: { q0: { columns: ["v"], rows: [{ v: 0 }] } },
+      depMap: { region: ["q0"] },
+      resolveUrl: "/data",
+      config: { type: "metric", props: { _queryId: "q0", refreshInterval: 5000 } },
+      harvestedParams: { region: "us" },
+      params,
+    });
+    store.start();
+
+    // First tick fails → failCounts=1 → next retry backed off to *2 (10000).
+    mode = "fail";
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // A param change drives an ensureFresh that ALSO fails — must not reset the
+    // counter. It bumps failCounts to 2 (backoff continues growing, not restart).
+    params.set("region", "eu");
+    await store.ensureFresh("q0");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // If the param failure had reset the counter, the timer would retry at *2
+    // (10000). Because it grew to failCounts=2, the next retry is at *4 (20000):
+    // advancing 10000 must NOT retry.
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // The kept rows are still visible (last-good, no error field).
+    const kept = await store.ensureFresh("q0");
+    expect(kept.rows).toEqual([{ v: 0 }]);
+    expect(kept.error).toBeUndefined();
+    // At *4 (20000 total from the param fetch) the timer fires.
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
 
     store.dispose();
   });
