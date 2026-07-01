@@ -737,3 +737,124 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
 }
 .ofw-chart-tooltip__name { color: var(--ofw-text-dim); }
 .ofw-chart-tooltip__value { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------------------
+ * Node peek-drawer (canvas config `nodePeek`): a right-side panel that peeks one
+ * node's artifact read-only without leaving the canvas. NO backdrop — the canvas
+ * stays interactive on the left. Slides in from the right (the global
+ * prefers-reduced-motion rule above disables the transition). z-index mirrors the
+ * fullscreen overlay (40): above the canvas, below the body-portaled menu layer.
+ * ------------------------------------------------------------------------- */
+.ofw-node-drawer {
+  /* Absolute within the canvas surface (`.canvas-surface` is position:relative),
+     so the panel is bounded to the canvas widget's own box — it belongs to the
+     widget, not the viewport. */
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(50%, 560px);
+  /* Above the ReactFlow pane + its controls/comment overlay (all ≤ ~5), below a
+     body-portaled fullscreen overlay (40). */
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  /* Match the canvas / fullscreen-overlay base (`--ofw-bg`), not the lighter
+     `--ofw-panel`, so the drawer reads as part of the app surface. */
+  background: var(--ofw-bg, #070a0f);
+  border-left: 1px solid var(--ofw-line-2, rgba(130, 160, 200, 0.2));
+  /* Strong shadow does the layering work the absent backdrop would: lift the
+     panel clearly off the still-lit canvas. */
+  box-shadow: -16px 0 40px rgba(0, 0, 0, 0.45);
+  transform: translateX(100%);
+  /* Exit: ease-IN (accelerate off-screen). Same 220ms distance/duration as enter;
+     only the curve flips. */
+  transition: transform 220ms cubic-bezier(0.4, 0, 1, 1);
+  will-change: transform;
+  outline: none;
+}
+.ofw-node-drawer[data-enter="true"] {
+  transform: translateX(0);
+  /* Enter: ease-OUT (decelerate into place). */
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ofw-node-drawer__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid var(--ofw-line, rgba(130, 160, 200, 0.11));
+}
+.ofw-node-drawer__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ofw-text, #e7ecf3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The action cluster sits apart from the title (a hairline divider + its own
+   small gap) so `⤢` (expand) and `✕` (close) read as a grouped pair. */
+.ofw-node-drawer__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding-left: 8px;
+  /* --ofw-line (0.11α) is near-invisible on the darker --ofw-bg; use --ofw-line-2
+     so the ⤢/✕ pair visibly separates from the title. */
+  border-left: 1px solid var(--ofw-line-2, rgba(130, 160, 200, 0.2));
+}
+.ofw-node-drawer__btn {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ofw-radius-sm, 7px);
+  border: none;
+  background: transparent;
+  color: var(--ofw-text-dim, #93a0b2);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.ofw-node-drawer__btn:hover {
+  background: var(--ofw-card-hi, rgba(130, 160, 200, 0.12));
+  color: var(--ofw-text, #e7ecf3);
+}
+/* Close reads as the destructive of the pair: a subtle danger tint on hover. */
+.ofw-node-drawer__btn--close:hover {
+  background: color-mix(in oklab, var(--ofw-danger, #ff6470) 14%, transparent);
+  color: var(--ofw-danger, #ff6470);
+}
+.ofw-node-drawer__body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}
+/* Keyed per node id: a re-target remounts this and replays the fade, so the
+   content swaps softly while the panel itself stays put. */
+.ofw-node-drawer__content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  animation: ofw-drawer-fade 120ms ease-out;
+}
+/* The peek body renders source as a PLAIN markdown code fence (shiki is app-only).
+ * Wrap long lines so they terminate inside the 16px gutter instead of clipping
+ * mid-glyph at the panel border — there is no column alignment to preserve, and
+ * horizontal scroll inside a ~50%-width drawer is a poor read. */
+.ofw-node-drawer__content .ofw-md pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@keyframes ofw-drawer-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

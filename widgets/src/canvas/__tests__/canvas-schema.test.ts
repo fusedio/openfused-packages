@@ -22,6 +22,11 @@ describe("CanvasPropsSchema", () => {
     expect(out.fitViewPadding).toBe(0.1);
   });
 
+  it("defaults nodePeek off and honours an explicit true", () => {
+    expect(CanvasPropsSchema.parse({ nodes: [] }).nodePeek).toBe(false);
+    expect(CanvasPropsSchema.parse({ nodes: [], nodePeek: true }).nodePeek).toBe(true);
+  });
+
   it("honours explicit edit-control values", () => {
     const out = CanvasPropsSchema.parse({
       nodes: [],
