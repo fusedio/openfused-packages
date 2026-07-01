@@ -58,6 +58,7 @@ import { CanvasFullscreenOverlay } from "./canvas-fullscreen-overlay";
 import { useCanvasHost } from "./canvas-host-context";
 import { CanvasNode } from "./canvas-node";
 import { CanvasNodeDrawer } from "./canvas-node-drawer";
+import { CanvasNodeSkeleton } from "./canvas-node-skeleton";
 import { estimateSize } from "./canvas-node-size";
 import type {
   CanvasNode as CanvasNodeModel,
@@ -361,6 +362,15 @@ function CanvasInner({ element }: ComponentRenderProps) {
     if (peekNodeId && hiddenNodeIds.has(peekNodeId)) setPeekNodeId(null);
   }, [peekNodeId, hiddenNodeIds]);
 
+  // Comment mode (declared here, before `rfNodes`, so node-peek can defer to it):
+  // when comment mode is on a node click must place a comment (via ReactFlow's
+  // onNodeClick), so peek's capture-phase interception is disabled below. Feedback
+  // mode (host-driven) opens comment mode; `C`/`Esc` toggle on top.
+  const [commentMode, setCommentMode] = React.useState(host.feedbackMode ?? false);
+  React.useEffect(() => {
+    setCommentMode(host.feedbackMode ?? false);
+  }, [host.feedbackMode]);
+
   const runtimeStoreRef = React.useRef<CanvasRuntime["store"] | null>(null);
   const runtime = React.useMemo(() => {
     const inputs: CanvasDataInputs = {
@@ -474,8 +484,9 @@ function CanvasInner({ element }: ComponentRenderProps) {
           onFullscreen: host.disableNodeFullscreen ? undefined : onFullscreen,
           // When the canvas config enables peek, a node click opens the drawer
           // (and cancels the node's default link navigation). Off → unset, so
-          // node links behave exactly as before.
-          onPeek: nodePeekEnabled ? openPeek : undefined,
+          // node links behave exactly as before. Suppressed in comment mode so a
+          // node click places a comment (ReactFlow onNodeClick) instead of peeking.
+          onPeek: nodePeekEnabled && !commentMode ? openPeek : undefined,
         },
         draggable: false,
         connectable: false,
@@ -493,6 +504,7 @@ function CanvasInner({ element }: ComponentRenderProps) {
       onFullscreen,
       nodePeekEnabled,
       openPeek,
+      commentMode,
     ],
   );
 
@@ -630,12 +642,21 @@ function CanvasInner({ element }: ComponentRenderProps) {
   // `widget`. Rendered under the node's per-node bridge — self-contained, the same
   // render path the fullscreen overlay uses (no host/app involvement).
   const renderPeekBody = React.useCallback(
-    (n: CanvasNodeModel) => (
-      <FusedWidgetBridgeContext.Provider value={runtime.getNodeBridge(n.id)}>
-        <RenderNode node={(n.peek ?? n.widget) as UINode} />
-      </FusedWidgetBridgeContext.Provider>
-    ),
-    [runtime],
+    (n: CanvasNodeModel) => {
+      const body = n.peek ?? n.widget;
+      // First-load: a data-bound peek (e.g. a SQL-backed widget) renders a
+      // shape-matched skeleton until the resolve lands, so the drawer doesn't flash
+      // empty/jumping content — mirroring the inline node's `loading` handling.
+      if (host.dataLoading && isDataBoundNode(body)) {
+        return <CanvasNodeSkeleton widget={body} />;
+      }
+      return (
+        <FusedWidgetBridgeContext.Provider value={runtime.getNodeBridge(n.id)}>
+          <RenderNode node={body as UINode} />
+        </FusedWidgetBridgeContext.Provider>
+      );
+    },
+    [runtime, host.dataLoading],
   );
 
   // --- Comments (json-ui-comments.md) ---------------------------------------
@@ -648,18 +669,8 @@ function CanvasInner({ element }: ComponentRenderProps) {
   const enableComments =
     rawProps.enableComments !== false && !host.commentsDisabled;
   const { comments, commit } = useCanvasComments(rawProps.comments);
-  // Feedback mode (host-driven, app board): open comment mode and fan each
-  // newly-added comment into the feedback task thread (host.onComment) so the
-  // assigned agent iterates. Keyboard `C`/`Esc` still toggle on top.
-  const [commentMode, setCommentMode] = React.useState(
-    host.feedbackMode ?? false,
-  );
-  // Entering feedback mode opens comments; leaving it closes them. (Between
-  // transitions the `C`/`Esc` keys still toggle freely — this only fires when
-  // the host flips feedbackMode.)
-  React.useEffect(() => {
-    setCommentMode(host.feedbackMode ?? false);
-  }, [host.feedbackMode]);
+  // (`commentMode` + its feedback-mode sync are declared earlier, before rfNodes,
+  // so node-peek can defer to comment mode.)
   const commitComments = React.useCallback(
     (next: Parameters<typeof commit>[0]) => {
       if (host.feedbackMode && host.onComment) {
