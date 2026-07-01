@@ -29,6 +29,15 @@ describe("isInteractiveTarget", () => {
     expect(isInteractiveTarget(el)).toBe(true);
   });
 
+  it("treats a label (which activates its control) as interactive", () => {
+    const label = document.createElement("label");
+    label.setAttribute("for", "x");
+    const inner = document.createElement("span");
+    label.appendChild(inner);
+    expect(isInteractiveTarget(label)).toBe(true);
+    expect(isInteractiveTarget(inner)).toBe(true);
+  });
+
   it("does NOT exempt a plain element — the node peek should fire", () => {
     expect(isInteractiveTarget(document.createElement("div"))).toBe(false);
     expect(isInteractiveTarget(document.createElement("span"))).toBe(false);

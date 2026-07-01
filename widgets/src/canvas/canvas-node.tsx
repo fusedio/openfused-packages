@@ -69,7 +69,7 @@ const INTERACTIVE_TYPES = new Set<string>([
  * the compact name-link `<a>`, which we DO want to intercept) is not exempt.
  */
 const PEEK_EXEMPT_SELECTOR =
-  'button, input, select, textarea, [role="button"], [contenteditable=""], [contenteditable="true"]';
+  'button, input, select, textarea, label, [role="button"], [contenteditable=""], [contenteditable="true"]';
 
 /** True if the click landed on (or inside) an interactive control — used to let
  * that control's own handler run instead of opening the node peek-drawer. */
