@@ -13,6 +13,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import React from "react";
+import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
 import "../../widget.css";
@@ -49,7 +50,12 @@ afterEach(() => {
 
 function render(node: UINode): void {
   root = createRoot(host);
-  root.render(React.createElement(RenderNode, { node }));
+  // flushSync commits synchronously so the DOM is queryable immediately after
+  // render — plain root.render() schedules asynchronously and leaves the DOM
+  // empty for these queries (mirrors button.browser.test.tsx).
+  flushSync(() => {
+    root!.render(React.createElement(RenderNode, { node }));
+  });
 }
 
 describe("renderer prop warning", () => {
