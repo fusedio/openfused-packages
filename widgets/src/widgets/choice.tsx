@@ -191,12 +191,14 @@ function SingleChoice({
       // control that looks answered would submit empty.
       if (cur === "" && defaultValue) {
         commit(defaultValue);
-      } else {
-        syncedRef.current = cur;
+        return;
       }
-      return;
+      // No seed needed — fall through to the reconcile below. `syncedRef` holds the
+      // first-render param value; if the param has since hydrated to a different
+      // value (canvas restore between first paint and this effect), reconcile now
+      // instead of silently marking it synced.
     }
-    if (syncedRef.current === cur) return; // our own write — nothing to reconcile
+    if (syncedRef.current === cur) return; // our own write / already reflected
     syncedRef.current = cur;
     if (cur === "") {
       setSelKey("");
