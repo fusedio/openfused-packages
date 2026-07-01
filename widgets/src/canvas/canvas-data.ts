@@ -95,6 +95,15 @@ export interface CanvasRuntime {
   store: CanvasParamStore;
   /** The edge-gated bridge for a node's widget subtree (provide via context to the node). */
   getNodeBridge: (nodeId: string) => FusedWidgetBridge;
+  /** Start every per-node data store's refresh timers (interval refetch). */
+  start: () => void;
+  /**
+   * Stop every per-node data store (clear timers + visibility listener). Only
+   * touches the per-node `WidgetDataStore`s — the shared canvas param `store`
+   * survives (it is reused across runtime rebuilds), so user input/selection
+   * state is NOT wiped on dispose.
+   */
+  dispose: () => void;
 }
 
 /**
@@ -120,7 +129,12 @@ export function createCanvasRuntime(
   // 1) Seed each node's own widget defaults under that node's origin (gated like
   //    user-set values). updatedAt 0 so a real user set always supersedes.
   for (const node of nodes) {
-    const harvested = harvestInitialParams(node.widget);
+    // Seed defaults from the node's widget AND its peek body (the peek-drawer can
+    // render `node.peek` instead, so its params/queries must resolve too).
+    const harvested = {
+      ...harvestInitialParams(node.widget),
+      ...(node.peek ? harvestInitialParams(node.peek) : null),
+    };
     for (const [param, value] of Object.entries(harvested)) {
       const existing = store.state[param]?.[node.id];
       if (
@@ -136,6 +150,7 @@ export function createCanvasRuntime(
   // 2) Build a per-node bridge + per-node data store AFTER seeding so each
   //    store compares the host's cached rows against the node's live filtered view.
   const bridges = new Map<string, FusedWidgetBridge>();
+  const nodeStores: WidgetDataStore[] = [];
   for (const node of nodes) {
     const allowedSources = routing.allowedSources(node.id);
 
@@ -147,7 +162,13 @@ export function createCanvasRuntime(
       onStopLoading: hooks.onStopLoading,
     });
 
-    const ownQids = collectQueryIds(node.widget);
+    // Include the peek body's queries (the drawer may render `node.peek`).
+    const ownQids = [
+      ...new Set([
+        ...collectQueryIds(node.widget),
+        ...collectQueryIds(node.peek),
+      ]),
+    ];
     const nodeStore = new WidgetDataStore({
       data: inputs.data,
       errors: inputs.errors,
@@ -176,6 +197,7 @@ export function createCanvasRuntime(
       },
     };
     bridges.set(node.id, nodeBridge);
+    nodeStores.push(nodeStore);
   }
 
   return {
@@ -185,6 +207,15 @@ export function createCanvasRuntime(
       if (b) return b;
       // Unknown node id (defensive) — fall back to the base bridge.
       return inputs.baseBridge;
+    },
+    start: () => {
+      for (const s of nodeStores) s.start();
+    },
+    // Disposes ONLY the per-node data stores' timers/listeners. `store` (the
+    // shared canvas param store) is intentionally left untouched so it survives
+    // runtime rebuilds — see the CanvasRuntime docstring.
+    dispose: () => {
+      for (const s of nodeStores) s.dispose();
     },
   };
 }

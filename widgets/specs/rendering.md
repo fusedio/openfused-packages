@@ -142,10 +142,19 @@ path ever `.parse()`s** with it — the schemas exist only for the build-time ge
   callable proxy) while bundling nothing (~300 KB of zod stays out of `widget.html`).
   The stub is spread-safe and obeys the Proxy `ownKeys` invariant
   (see [`internal-requirements.md`](./internal-requirements.md) §7).
-- The **only** runtime gate is `components.json` **type membership** — applied
-  server-side by the host before the config is rendered. The renderer itself applies no
-  prop validation: an unknown `type` degrades to the unknown-component placeholder; a
-  known type renders with whatever props it was handed.
+- The **hard** runtime gate is `components.json` **type membership** — applied
+  server-side by the host before the config is rendered. An unknown `type` degrades to
+  the danger-red unknown-component placeholder (`.ofw-unknown`, `role="alert"`).
+- The renderer additionally **soft-warns** on unrecognized *props* of a KNOWN type:
+  each node's authored prop names are checked against a build-time-baked per-type
+  allow-set (`generated/allowed-props.json`, the keys of each widget's sanitized
+  Draft-07 propsSchema — see [`catalog.md`](./catalog.md)), minus the exemptions
+  `_queryId` (planner-injected binding id) and `style` (coerced generically). Any extra
+  renders a visible amber advisory (`.ofw-warning`, `role="alert"`) **alongside** the
+  widget — the widget still renders with whatever it recognized; this is a warning, not
+  a hard gate, and the **browser is authoritative** for what the live bundle dropped. A
+  type with no allow-set entry is treated as all-allowed (best-effort, no warning). No
+  `.parse()` is involved — the check is a plain key-set difference.
 
 ## 5a. Loading states — every data-bound display widget shows a skeleton
 

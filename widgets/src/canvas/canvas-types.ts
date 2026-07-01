@@ -87,10 +87,14 @@ export const CanvasNodeSchema = z.object({
     .describe(
       "Optional DTV column hint for auto-layout: data (sources, left), transform (middle), view (outputs, right). Prefer omitting position and setting layer so the canvas auto-arranges left-to-right; only set explicit position when you need an exact placement.",
     ),
+  peek: JsonUiNodeSchema.optional().describe(
+    "Optional richer body rendered in the node peek-drawer (canvas config `nodePeek`) INSTEAD of `widget`. Lets a node display compactly (e.g. a name card) yet peek a fuller artifact (the reference note, the UDF source, the widget) without navigating away. When omitted the drawer falls back to `widget`.",
+  ),
 });
-/** Keep `widget` as the recursive JsonUiNode the renderer expects (the schema view above is flat). */
-export type CanvasNode = Omit<z.input<typeof CanvasNodeSchema>, "widget"> & {
+/** Keep `widget`/`peek` as the recursive JsonUiNode the renderer expects (the schema view above is flat). */
+export type CanvasNode = Omit<z.input<typeof CanvasNodeSchema>, "widget" | "peek"> & {
   widget: JsonUiNode;
+  peek?: JsonUiNode;
 };
 
 export const CanvasEdgeSchema = z.object({
@@ -307,6 +311,13 @@ export const CanvasPropsSchema = z
       .optional()
       .default("dots")
       .describe("Canvas background pattern."),
+    nodePeek: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe(
+        "When true, clicking a node opens a read-only side drawer peeking that node's artifact (instead of the node's default link navigation). Default false; the project pipeline canvas turns it on. The host (app) supplies the drawer's content via CanvasHostValue.renderNodePeek; without a host renderer the drawer falls back to the node's own widget.",
+      ),
     fitViewPadding: z
       .number()
       .optional()
