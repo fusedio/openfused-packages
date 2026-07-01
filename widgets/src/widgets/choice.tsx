@@ -154,56 +154,87 @@ function SingleChoice({
     [options],
   );
 
-  // Derive the initial UI state from the current param value (so the widget
-  // round-trips an existing answer), else from defaultValue.
+  // Initial UI state from the current param (round-trip an existing answer), else
+  // from defaultValue. An off-menu value selects "Other" when allowed, otherwise a
+  // synthetic option (see radioOptions) so the control reflects the stored value
+  // instead of appearing blank (parity with `dropdown`).
   const seed = (value ?? "") === "" ? (defaultValue ?? "") : String(value);
   const seededIsOption = seed !== "" && optionValues.has(seed);
   const [selKey, setSelKey] = React.useState<string>(() => {
     if (seededIsOption) return seed;
-    if (seed !== "" && allowOther) return OTHER_KEY;
+    if (seed !== "") return allowOther ? OTHER_KEY : seed; // off-menu → Other or synthetic
     return "";
   });
   const [otherText, setOtherText] = React.useState<string>(() =>
-    !seededIsOption && seed !== "" ? seed : "",
+    !seededIsOption && seed !== "" && allowOther ? seed : "",
   );
 
-  // One-shot seed of the param from defaultValue when nothing exists yet. Seed
-  // whether defaultValue matches a listed option OR is an off-menu "Other" seed
-  // (allowOther) — the initial UI state (selKey/otherText above) reflects both,
-  // so the param MUST too, else the Other field renders pre-filled while the
-  // param/form store stays empty (silent submit-time data loss inside a form).
-  const seededRef = React.useRef(false);
+  // Persist an initial defaultValue into the param once, then keep the local UI
+  // reconciled with EXTERNAL param changes (canvas hydration / restore / sync) —
+  // not just the mount value, which otherwise leaves the ticks/Other stale.
+  // `syncedRef` holds the param value we last reflected, so our own writes (via
+  // `commit`) never trigger a redundant reconcile.
+  const syncedRef = React.useRef<string>(String(value ?? ""));
+  const initRef = React.useRef(false);
+  const commit = (v: string) => {
+    syncedRef.current = v;
+    setValue(v);
+  };
   React.useEffect(() => {
-    if (seededRef.current) return;
-    seededRef.current = true;
-    if ((value ?? "") !== "") return; // param already has a value
-    if (defaultValue && (optionValues.has(defaultValue) || allowOther)) {
-      setValue(defaultValue);
+    const cur = String(value ?? "");
+    if (!initRef.current) {
+      initRef.current = true;
+      // One-shot seed of the param from defaultValue when nothing exists yet, so a
+      // pre-filled Other/option is captured on submit even if untouched.
+      if (cur === "" && defaultValue && (optionValues.has(defaultValue) || allowOther)) {
+        commit(defaultValue);
+      } else {
+        syncedRef.current = cur;
+      }
+      return;
+    }
+    if (syncedRef.current === cur) return; // our own write — nothing to reconcile
+    syncedRef.current = cur;
+    if (cur === "") {
+      setSelKey("");
+      setOtherText("");
+    } else if (optionValues.has(cur)) {
+      setSelKey(cur);
+      setOtherText("");
+    } else if (allowOther) {
+      setSelKey(OTHER_KEY);
+      setOtherText(cur);
+    } else {
+      setSelKey(cur); // off-menu, no Other → synthetic option below
+      setOtherText("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [value, optionValues, allowOther, defaultValue]);
 
+  // A selected off-menu value with no "Other" escape gets a synthetic radio so the
+  // control stays aligned with the param (round-trip / read-only when options
+  // change or allowOther is omitted).
+  const offMenuKey =
+    selKey && selKey !== OTHER_KEY && !optionValues.has(selKey) ? selKey : "";
   const radioOptions = React.useMemo(
     () => [
       ...options.map((o) => ({ value: o.value, title: o.label })),
+      ...(offMenuKey ? [{ value: offMenuKey, title: offMenuKey }] : []),
       ...(allowOther ? [{ value: OTHER_KEY, title: otherLabel }] : []),
     ],
-    [options, allowOther, otherLabel],
+    [options, allowOther, otherLabel, offMenuKey],
   );
 
   const onPick = (picked: string) => {
     setSelKey(picked);
-    if (picked === OTHER_KEY) {
-      // Broadcast the current other text (may be empty until typed).
-      setValue(otherText);
-    } else {
-      setValue(picked);
-    }
+    // "Other" broadcasts the current text (may be empty until typed); a real or
+    // synthetic option broadcasts its value.
+    commit(picked === OTHER_KEY ? otherText : picked);
   };
 
   const onOtherText = (text: string) => {
     setOtherText(text);
-    if (selKey === OTHER_KEY) setValue(text);
+    if (selKey === OTHER_KEY) commit(text);
   };
 
   return (
@@ -265,49 +296,60 @@ function MultiChoice({
     [options],
   );
 
-  // Split the current param array into ticked known options + a single leftover
-  // "other" text (any value that is not a known option).
   const paramArray = React.useMemo<string[]>(
     () => (Array.isArray(value) ? value.map((v) => String(v)) : []),
     [value],
   );
-  const initialTicked = React.useMemo(
+  // DERIVE from the param every render (mirrors `checkbox-group`) so an external
+  // fill/update after the first paint (canvas hydration, restore, sync) is
+  // reflected — mount-only local state would go stale.
+  const ticked = React.useMemo(
     () => paramArray.filter((v) => optionValues.has(v)),
     [paramArray, optionValues],
   );
-  // Only adopt an off-menu param value as the "other" text when the author
-  // actually enabled the Other control. With allowOther=false the control is
-  // hidden, so seeding otherOn/otherText from a stray off-menu string would let
-  // a checkbox toggle silently re-broadcast an invisible value.
-  const initialOther = React.useMemo(
-    () => (allowOther ? (paramArray.find((v) => !optionValues.has(v)) ?? "") : ""),
+  // Off-menu strings in the param — surfaced only when Other is enabled. The FIRST
+  // is bound to the free-text field; any EXTRAS are preserved across checkbox
+  // toggles / edits rather than silently dropped (they only clear when the human
+  // explicitly turns Other off).
+  const customs = React.useMemo(
+    () => (allowOther ? paramArray.filter((v) => !optionValues.has(v)) : []),
     [allowOther, paramArray, optionValues],
   );
+  const otherText = customs[0] ?? "";
+  const extras = React.useMemo(() => customs.slice(1), [customs]);
 
-  const [ticked, setTicked] = React.useState<string[]>(() =>
-    initialTicked.length > 0 ? initialTicked : (defaultSelected ?? []).filter((v) => optionValues.has(v)),
-  );
-  const [otherOn, setOtherOn] = React.useState<boolean>(() => initialOther !== "");
-  const [otherText, setOtherText] = React.useState<string>(() => initialOther);
+  // The only local state: whether Other is toggled on while its text is empty
+  // (the param can't encode that). An externally-present custom also shows it.
+  const [otherOnState, setOtherOnState] = React.useState<boolean>(() => customs.length > 0);
+  const otherOn = otherOnState || customs.length > 0;
 
-  const broadcast = (nextTicked: string[], nextOtherOn: boolean, nextOtherText: string) => {
+  const commit = (
+    nextTicked: string[],
+    includeOther: boolean,
+    text: string,
+    keepExtras: boolean,
+  ) => {
     const out = [...nextTicked];
-    // Never append off-menu text unless the Other control is enabled — otherwise
-    // the param carries a value the hidden UI can't show or clear.
-    if (allowOther && nextOtherOn && nextOtherText.trim() !== "") out.push(nextOtherText);
-    setValue(out);
+    if (allowOther && includeOther && text.trim() !== "") out.push(text);
+    if (keepExtras) out.push(...extras);
+    setValue(Array.from(new Set(out))); // de-dupe, preserve order
   };
 
-  // One-shot seed from defaultSelected when the param is still empty.
+  // One-shot seed from defaultSelected when the param is still empty — including
+  // OFF-MENU entries as customs when allowOther (parity with single mode, which
+  // seeds an off-menu defaultValue).
   const seededRef = React.useRef(false);
   React.useEffect(() => {
     if (seededRef.current) return;
     seededRef.current = true;
     if (paramArray.length > 0) return;
     const seedTicked = (defaultSelected ?? []).filter((v) => optionValues.has(v));
-    if (seedTicked.length > 0) {
-      setTicked(seedTicked);
-      broadcast(seedTicked, false, "");
+    const seedCustoms = allowOther
+      ? (defaultSelected ?? []).filter((v) => !optionValues.has(v))
+      : [];
+    if (seedTicked.length > 0 || seedCustoms.length > 0) {
+      if (seedCustoms.length > 0) setOtherOnState(true);
+      setValue(Array.from(new Set([...seedTicked, ...seedCustoms])));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -316,19 +358,21 @@ function MultiChoice({
     const next = ticked.includes(optionValue)
       ? ticked.filter((v) => v !== optionValue)
       : [...ticked, optionValue];
-    setTicked(next);
-    broadcast(next, otherOn, otherText);
+    commit(next, otherOn, otherText, true);
   };
 
   const toggleOther = () => {
     const next = !otherOn;
-    setOtherOn(next);
-    broadcast(ticked, next, otherText);
+    setOtherOnState(next);
+    // Turning Other ON keeps any extras; turning it OFF is a deliberate "no other
+    // answer" → drop every off-menu custom.
+    if (next) commit(ticked, true, otherText, true);
+    else commit(ticked, false, "", false);
   };
 
   const onOtherText = (text: string) => {
-    setOtherText(text);
-    if (otherOn) broadcast(ticked, true, text);
+    setOtherOnState(true);
+    commit(ticked, true, text, true);
   };
 
   return (
