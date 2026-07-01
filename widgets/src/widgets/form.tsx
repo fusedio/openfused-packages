@@ -56,8 +56,19 @@ import {
   type ComponentRenderProps,
 } from "@fusedio/widget-sdk";
 
+import { LoadingBusContext } from "../render";
 import { UNIVERSAL_PROPS } from "./_universal";
 import type { ComponentDef } from "./types";
+
+function useIsLoading(): boolean {
+  const bus = React.useContext(LoadingBusContext);
+  const [loading, setLoading] = React.useState(false);
+  React.useEffect(() => {
+    if (!bus) return;
+    return bus.subscribe(() => setLoading(bus.isLoading()));
+  }, [bus]);
+  return loading;
+}
 
 // ----------------------------------------------------------------- props schema
 // A strict subset of the application's form contract — identical
@@ -94,6 +105,7 @@ function Form({ element }: ComponentRenderProps<FormProps>) {
   const style = (element.props as { style?: string }).style;
 
   const bridge = useFusedWidgetBridge();
+  const isLoading = useIsLoading();
 
   // One field store per Form instance (created once, never recreated).
   const storeRef = React.useRef<FormParamsStore | null>(null);
@@ -138,10 +150,31 @@ function Form({ element }: ComponentRenderProps<FormProps>) {
         <button
           type="button"
           className="ofw-btn ofw-btn--primary"
-          style={{ alignSelf: "flex-start", marginTop: "4px" }}
+          style={{ alignSelf: "flex-start", marginTop: "4px", opacity: isLoading ? 0.7 : 1 }}
           onClick={handleSubmit}
+          disabled={isLoading}
+          aria-busy={isLoading}
         >
-          {submitLabel || "Submit"}
+          {isLoading ? (
+            <>
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "12px",
+                  height: "12px",
+                  border: "2px solid currentColor",
+                  borderTopColor: "transparent",
+                  borderRadius: "50%",
+                  animation: "ofw-spin 0.7s linear infinite",
+                  marginRight: "6px",
+                  verticalAlign: "middle",
+                }}
+              />
+              {submitLabel || "Submit"}…
+            </>
+          ) : (
+            submitLabel || "Submit"
+          )}
         </button>
       </div>
     </FormContext.Provider>
