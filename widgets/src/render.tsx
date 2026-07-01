@@ -31,32 +31,7 @@ import {
   type FusedWidgetBridge,
 } from "@fusedio/widget-sdk";
 
-// ---------------------------------------------------------- loading bus
-//
-// Tracks how many queries are in-flight across the tree. The SDK's
-// `useDuckDbSqlQuery` calls `bridge.edges.startLoading()` when a query
-// fires and `stopLoading()` when it settles — RenderTree intercepts those
-// to maintain a reference count, then publishes via LoadingBusContext so
-// the `form` widget can show a spinner on its submit button.
-
-interface LoadingBus {
-  isLoading(): boolean;
-  subscribe(cb: () => void): () => void;
-}
-
-function createLoadingBus(): LoadingBus & { start(): void; stop(): void } {
-  let count = 0;
-  const cbs = new Set<() => void>();
-  const notify = () => cbs.forEach((cb) => cb());
-  return {
-    start() { count++; notify(); },
-    stop() { if (count > 0) { count--; notify(); } },
-    isLoading() { return count > 0; },
-    subscribe(cb) { cbs.add(cb); return () => cbs.delete(cb); },
-  };
-}
-
-export const LoadingBusContext = React.createContext<LoadingBus | null>(null);
+import { LoadingBusContext, createLoadingBus } from "./loading-bus";
 
 import { registry, type ComponentRenderer } from "./widgets";
 

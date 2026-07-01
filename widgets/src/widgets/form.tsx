@@ -56,7 +56,7 @@ import {
   type ComponentRenderProps,
 } from "@fusedio/widget-sdk";
 
-import { LoadingBusContext } from "../render";
+import { LoadingBusContext } from "../loading-bus";
 import { UNIVERSAL_PROPS } from "./_universal";
 import type { ComponentDef } from "./types";
 
