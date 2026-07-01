@@ -24,6 +24,8 @@ import button from "./button";
 import cameraInput from "./camera-input";
 import canvas from "./canvas";
 import checkboxGroup from "./checkbox-group";
+import choice from "./choice";
+import collapsible from "./collapsible";
 import colorInput from "./color-input";
 import datetimeInput from "./datetime-input";
 import diff from "./diff";
@@ -107,6 +109,11 @@ export const componentDefs: ComponentDefMap = {
   "gallery-input": galleryInput,
   // batch 1 — container
   form,
+  // agent_core-owned layout + feedback primitives (no Fused app parity):
+  //   collapsible — disclosure container for the architect's summary+detail specs
+  //   choice      — single/multi question with an "Other" free-text escape hatch
+  collapsible,
+  choice,
   // maps (native-app render; the deployed bundle shows a placeholder — build.mjs)
   map,
   "map-bounds": mapBounds,

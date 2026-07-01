@@ -100,6 +100,14 @@ body.ofw-page #root { padding: 20px; max-width: 1340px; margin: 0 auto; }
    map or chart can leak on top of the New task / New project modals. */
 .ofw-dashboard { display: flex; flex-direction: column; gap: 20px; isolation: isolate; }
 
+/* `div` container primitive — parity with the app DivRenderer (`min-w-0 flex
+   flex-col`). div.tsx documents this default but never shipped the CSS, so an
+   authored `div` was a plain block and its inline `flex-direction`/`gap` were
+   inert (children stacked flush — the "no padding between them" bug). Restore the
+   flex column here; the node's own `style` (row direction, gap, etc.) merges over
+   it via inline style, so authored `gap` finally takes effect. */
+.ofw-div { display: flex; flex-direction: column; min-width: 0; }
+
 /* Task-board fill (the app Tasks surface passes the `fill` prop): the board's
    card chain stretches to the dashboard height so the kanban columns reach the
    bottom instead of stopping at the default fixed 32rem. Default (no --fill) is
