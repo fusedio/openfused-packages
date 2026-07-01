@@ -208,6 +208,14 @@ export function collectConfigQueryIds(config: unknown): string[] {
 export const MIN_REFRESH_INTERVAL_MS = 1000;
 
 /**
+ * Ceiling for the exponential backoff applied after a failed interval refetch:
+ * the next attempt lands at `min(interval * 2 ** failures, MAX_BACKOFF_MS)`, so
+ * a persistently-failing live source retries at most every 5 minutes rather
+ * than hammering the resolver.
+ */
+export const MAX_BACKOFF_MS = 5 * 60_000;
+
+/**
  * Harvest `{queryId -> intervalMs}` from a widget config, mirroring the
  * tree-walk of `collectConfigQueryIds` but recording each node's (and each
  * map/fused-map layer's) `refreshInterval` keyed by its `_queryId`.
@@ -417,6 +425,14 @@ export class WidgetDataStore {
   /** Per-interval-qid `setTimeout` handle. Single-shot, rescheduled each tick. */
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
 
+  /**
+   * Consecutive refetch-failure count per interval qid. Drives the backoff
+   * delay in `scheduleTimer`; reset to 0 (deleted) by a successful
+   * `applyResponse`. A manual param/write-driven failure does NOT reset it —
+   * only a success does.
+   */
+  private failCounts = new Map<string, number>();
+
   /** Set once `dispose()` runs; guards every reschedule path. */
   private disposed = false;
 
@@ -565,7 +581,15 @@ export class WidgetDataStore {
       const error = queryId != null ? this.errors[queryId] ?? null : null;
       return { rows: [], columns: [], ...(error ? { error } : {}) };
     }
-    return { rows: entry.rows ?? [], columns: entry.columns ?? [] };
+    // A live source that failed a refetch keeps its last-good rows AND carries a
+    // transient error indicator (applyEndpointError sets errors[qid] without
+    // blanking rows) — surface both so the widget can show stale-with-error.
+    const error = queryId != null ? this.errors[queryId] : undefined;
+    return {
+      rows: entry.rows ?? [],
+      columns: entry.columns ?? [],
+      ...(error ? { error } : {}),
+    };
   }
 
   /**
@@ -729,6 +753,9 @@ export class WidgetDataStore {
       // A forced (timer-driven) fetch is now handled — clear it so isStale
       // stops returning true for this qid.
       this.forced.delete(qid);
+      // A successful resolve clears any backoff so the next tick is at the
+      // normal interval again.
+      this.failCounts.delete(qid);
       // Reset the refetch clock on EVERY successful resolve (timer- or
       // param/write-driven) so the next tick lands a full interval after the
       // most recent fetch — no matter what triggered it.
@@ -737,9 +764,22 @@ export class WidgetDataStore {
   }
 
   /**
-   * Endpoint-level failure (network/HTTP). Surface the error per stale qid
-   * (rows:[] + error) so the bound charts show an error rather than hanging,
-   * and advance their snapshot so we don't tight-loop retrying the same params.
+   * Endpoint-level failure (network/HTTP).
+   *
+   * Live (interval) qid that already holds good rows: keep the last-good rows,
+   * surface the error as a transient indicator (rows are NOT blanked), and back
+   * off — increment the fail count and reschedule at the exponential delay
+   * (`scheduleTimer` consults `failCounts`). This is what lets a live dashboard
+   * keep showing the last value through a resolver blip.
+   *
+   * Otherwise (a non-interval / param-driven qid, or an interval qid whose very
+   * FIRST fetch failed so there are no rows to keep): today's behavior — blank
+   * rows + error so the widget shows a clear error rather than an empty-but-
+   * "fresh" chart.
+   *
+   * In all cases advance `paramSnapshotKey` so we don't tight-loop retrying the
+   * same params outside the timer, and clear `forced` so the failed tick's force
+   * flag doesn't keep the qid stale.
    */
   private applyEndpointError(
     staleQids: string[],
@@ -749,14 +789,26 @@ export class WidgetDataStore {
   ): void {
     if (signal.aborted) return;
     for (const qid of staleQids) {
-      this.data[qid] = { columns: [], rows: [] };
-      this.errors[qid] = message;
+      const hasInterval = qid in this.refreshIntervals;
+      const existing = this.data[qid];
+      const hasRows = existing !== undefined && (existing.rows?.length ?? 0) > 0;
+      if (hasInterval && hasRows) {
+        // Keep last-good rows; surface a transient error; back off.
+        this.errors[qid] = message;
+        this.failCounts.set(qid, (this.failCounts.get(qid) ?? 0) + 1);
+      } else {
+        // No rows to preserve (or not a live source): blank + error.
+        this.data[qid] = { columns: [], rows: [] };
+        this.errors[qid] = message;
+        if (hasInterval)
+          this.failCounts.set(qid, (this.failCounts.get(qid) ?? 0) + 1);
+      }
       this.paramSnapshotKey[qid] = snapshotKey(
         this.restrictToQid(qid, fullSnapshot),
       );
-      // Clear the forced flag so a failed tick doesn't loop; the failure-path
-      // refinement (e.g. keeping prior rows) is a later task.
       this.forced.delete(qid);
+      // Reschedule at the backed-off delay (scheduleTimer reads failCounts).
+      if (hasInterval) this.scheduleTimer(qid);
     }
   }
 
@@ -814,8 +866,22 @@ export class WidgetDataStore {
     if (existing !== undefined) clearTimeout(existing);
     const handle = setTimeout(() => {
       void this.tick(qid);
-    }, interval);
+    }, this.nextDelay(qid, interval));
     this.timers.set(qid, handle);
+  }
+
+  /**
+   * The single source of truth for a qid's next-tick delay: the normal interval
+   * when it's healthy (`failCounts` 0), otherwise the exponential backoff
+   * `min(interval * 2 ** failures, MAX_BACKOFF_MS)`. Every reschedule path (tick
+   * and applyEndpointError) goes through `scheduleTimer` → here, so the backoff
+   * always wins over the normal interval while failures persist, and the normal
+   * cadence resumes the instant a success resets the counter.
+   */
+  private nextDelay(qid: string, interval: number): number {
+    const failures = this.failCounts.get(qid) ?? 0;
+    if (failures === 0) return interval;
+    return Math.min(interval * 2 ** failures, MAX_BACKOFF_MS);
   }
 
   /**

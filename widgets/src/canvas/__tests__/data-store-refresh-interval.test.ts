@@ -351,3 +351,118 @@ describe("WidgetDataStore — interval-refetch timer", () => {
     store.dispose();
   });
 });
+
+describe("WidgetDataStore — refresh failure handling", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("keeps last-good rows + backs off exponentially on a failed tick, then recovers", async () => {
+    vi.useFakeTimers();
+    stubVisibility();
+    let mode: "ok" | "fail" = "ok";
+    const fetchMock = vi.fn(async () => {
+      if (mode === "fail") throw new Error("network down");
+      return jsonResponse({
+        data: { q0: { columns: ["v"], rows: [{ v: 1 }] } },
+        errors: {},
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = new WidgetDataStore({
+      data: { q0: { columns: ["v"], rows: [{ v: 0 }] } },
+      resolveUrl: "/data",
+      config: { type: "metric", props: { _queryId: "q0", refreshInterval: 5000 } },
+      params: createParamsStore(),
+    });
+    store.start();
+
+    // First tick succeeds (rows -> v:1).
+    await vi.advanceTimersByTimeAsync(5000);
+    expect((await store.ensureFresh("q0")).rows).toEqual([{ v: 1 }]);
+
+    // Next tick fails: last-good rows kept, error surfaced, no blanking.
+    mode = "fail";
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const afterFail = await store.ensureFresh("q0");
+    expect(afterFail.rows).toEqual([{ v: 1 }]); // last-good, not []
+    expect(afterFail.error).toBe("network down");
+
+    // Backoff: interval (5000) does NOT retry; interval*2 (10000) does.
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(5000); // now at t=+10000 since fail
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    // Still failing → next backoff is interval*4 (20000).
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    // Recovery: a success clears the error, resets backoff to normal cadence.
+    mode = "ok";
+    await vi.advanceTimersByTimeAsync(40000); // that attempt was at *8 backoff
+    const recovered = await store.ensureFresh("q0");
+    expect(recovered.rows).toEqual([{ v: 1 }]);
+    expect(recovered.error).toBeUndefined();
+    const callsAtRecovery = fetchMock.mock.calls.length;
+
+    // Normal 5000 cadence restored (no more backoff).
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(callsAtRecovery + 1);
+
+    store.dispose();
+  });
+
+  it("blanks + errors an interval qid whose FIRST fetch fails (no last-good)", async () => {
+    vi.useFakeTimers();
+    stubVisibility();
+    const fetchMock = vi.fn(async () => {
+      throw new Error("boom");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = new WidgetDataStore({
+      data: {}, // no rows yet
+      resolveUrl: "/data",
+      config: { type: "metric", props: { _queryId: "q0", refreshInterval: 5000 } },
+      params: createParamsStore(),
+    });
+    store.start();
+
+    await vi.advanceTimersByTimeAsync(5000);
+    const entry = await store.ensureFresh("q0");
+    expect(entry.rows).toEqual([]); // blanked
+    expect(entry.error).toBe("boom");
+
+    store.dispose();
+  });
+
+  it("blanks + errors a NON-interval (param-driven) qid on a failed refetch", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error("param fetch failed");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const params = createParamsStore();
+    const store = new WidgetDataStore({
+      data: { q0: { columns: ["v"], rows: [{ v: 7 }] } },
+      depMap: { region: ["q0"] },
+      resolveUrl: "/data",
+      config: { type: "metric", props: { sql: "SELECT $region", _queryId: "q0" } },
+      harvestedParams: { region: "us" },
+      params,
+    });
+
+    params.set("region", "eu");
+    const entry = await store.ensureFresh("q0");
+    // No interval → today's behavior: rows blanked, error set.
+    expect(entry.rows).toEqual([]);
+    expect(entry.error).toBe("param fetch failed");
+  });
+});
