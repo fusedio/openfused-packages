@@ -230,9 +230,15 @@ hand-maintained lists — drift is impossible by construction. A pre-commit hook
 edits to the definitions.
 
 > **Gone:** the `schema/` per-type JSON-Schema files and the agent-facing `guide/` generation
-> no longer exist. There is **no soft prop validation** at render — the sole runtime gate is
-> the `components.json` type-membership check. `internal-requirements.md` is the canonical
-> owner of this build-time-only / runtime-reads-nothing invariant.
+> no longer exist, and there is **no `.parse()`-based prop validation** at render. The **hard**
+> runtime gate remains the `components.json` type-membership check (unknown type →
+> `.ofw-unknown` placeholder). The renderer now ALSO **soft-warns** on unrecognized props of a
+> known type — a plain key-set difference against the per-type `props` allow-set (baked into
+> `components.json` + the sibling `generated/allowed-props.json`), rendering an amber
+> `.ofw-warning` advisory alongside the widget. It is advisory only; the widget still renders and
+> the browser is authoritative. See [`rendering.md`](./rendering.md) § 5.
+> `internal-requirements.md` is the canonical owner of the build-time-only / runtime-reads-only-
+> the-manifest invariant.
 
 ---
 

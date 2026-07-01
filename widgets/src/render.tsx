@@ -32,6 +32,22 @@ import {
 } from "@fusedio/widget-sdk";
 
 import { registry, type ComponentRenderer } from "./widgets";
+import allowedPropsMap from "./widgets/generated/allowed-props.json";
+
+// Build-time-baked per-type allow-set: the keys of each component's sanitized
+// Draft-07 propsSchema (emitted by scripts/generate.ts). The renderer soft-warns
+// on any authored prop outside this set so an agent sees what the live bundle
+// silently dropped. The browser is authoritative for what actually renders.
+const ALLOWED_PROPS: Record<string, string[]> = allowedPropsMap;
+
+// Props that are legitimately present on many nodes but are NOT declared in each
+// widget's schema, so they must never trigger a warning:
+//   • `_queryId` — planner-injected data-binding id (threaded via context), not
+//     an authored prop and absent from every schema.
+//   • `style`   — coerced generically by `coerceStyleProp` and read via
+//     `parseStyle`; the universal layer still declares `css`, so `style` is not
+//     in some widgets' generated prop lists.
+const ALWAYS_ALLOWED = new Set(["_queryId", "style"]);
 
 // --------------------------------------------------------------- node + props
 export interface UINode {
@@ -110,6 +126,40 @@ function UnknownComponent({ type }: { type: string }): React.ReactElement {
   );
 }
 
+// Soft advisory shown ALONGSIDE a rendered widget when it carries props the live
+// bundle does not recognize (a typo, a stale/app-only prop). It never replaces the
+// widget — the component still renders whatever it recognized; this is a warning,
+// not a hard gate. Amber (--ofw-accent) treatment, distinct from the danger-red
+// unknown-type placeholder.
+function PropWarning({
+  type,
+  props,
+}: {
+  type: string;
+  props: string[];
+}): React.ReactElement {
+  return (
+    <div className="ofw-warning" role="alert">
+      {type}: ignored unrecognized prop{props.length > 1 ? "s" : ""}:{" "}
+      {props.join(", ")}
+    </div>
+  );
+}
+
+/** Prop names on `props` not in the type's allow-set (best-effort: unknown type → none). */
+function unrecognizedProps(
+  type: string,
+  props: Record<string, unknown>,
+): string[] {
+  const allowed = ALLOWED_PROPS[type];
+  // No entry for this type → treat as all-allowed (best-effort, don't warn).
+  if (!allowed) return [];
+  const allowSet = new Set(allowed);
+  return Object.keys(props).filter(
+    (k) => !allowSet.has(k) && !ALWAYS_ALLOWED.has(k),
+  );
+}
+
 // `display:contents` marker carrying the node's stable path (json-ui-comments.md
 // §9). Generates no box, so layout is identical; the page-level CommentsLayer
 // hit-tests `[data-ofw-node]` and positions pins off the node's children rect.
@@ -160,11 +210,24 @@ function NodeInner({
   };
   const rendered = <Component element={element} />;
 
+  // Soft prop check — only for KNOWN types (unknown types already early-returned
+  // above, so we never double-warn). Warn ALONGSIDE the widget, never replacing it.
+  const extras = unrecognizedProps(node.type, props);
+  const withWarning =
+    extras.length > 0 ? (
+      <>
+        <PropWarning type={node.type} props={extras} />
+        {rendered}
+      </>
+    ) : (
+      rendered
+    );
+
   const queryId = props._queryId;
   if (typeof queryId === "string" && queryId !== "") {
-    return <BoundNode queryId={queryId}>{rendered}</BoundNode>;
+    return <BoundNode queryId={queryId}>{withWarning}</BoundNode>;
   }
-  return rendered;
+  return withWarning;
 }
 
 /**
