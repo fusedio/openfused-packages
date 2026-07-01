@@ -740,10 +740,15 @@ export class WidgetDataStore {
     const errors = response?.errors ?? {};
     for (const qid of staleQids) {
       if (Object.prototype.hasOwnProperty.call(errors, qid)) {
-        // Per-qid error: rows:[] + error, never blanks the whole widget.
-        this.data[qid] = { columns: [], rows: [] };
-        this.errors[qid] = errors[qid];
-      } else if (Object.prototype.hasOwnProperty.call(data, qid)) {
+        // A 200 with a per-qid error IS a failure for this qid — route it
+        // through the shared failure path so a live source keeps its last-good
+        // rows and backs off exactly like an endpoint failure. Do NOT fall
+        // through to the success tail (no backoff reset, no normal-interval
+        // reschedule).
+        this.recordQidFailure(qid, fullSnapshot, errors[qid]);
+        continue;
+      }
+      if (Object.prototype.hasOwnProperty.call(data, qid)) {
         this.data[qid] = data[qid];
         delete this.errors[qid];
       } else {
@@ -751,18 +756,19 @@ export class WidgetDataStore {
         // leave any existing rows untouched, but if we have none yet record an
         // empty entry so the fetch-on-mount check in isStale (which treats
         // `undefined` rows as unresolved) doesn't spin re-fetching a qid the
-        // server won't resolve. The snapshot is still advanced below.
-        if (this.data[qid] === undefined)
-          this.data[qid] = { columns: [], rows: [] };
+        // server won't resolve. The snapshot is still advanced below. This is
+        // NOT a failure — don't touch backoff.
       }
+      if (this.data[qid] === undefined)
+        this.data[qid] = { columns: [], rows: [] };
       this.paramSnapshotKey[qid] = snapshotKey(
         this.restrictToQid(qid, fullSnapshot),
       );
       // A forced (timer-driven) fetch is now handled — clear it so isStale
       // stops returning true for this qid.
       this.forced.delete(qid);
-      // A successful resolve clears any backoff so the next tick is at the
-      // normal interval again.
+      // Genuine success (data returned, or a benign not-returned qid) clears any
+      // backoff so the next tick is at the normal interval again.
       this.failCounts.delete(qid);
       // Reset the refetch clock on EVERY successful resolve (timer- or
       // param/write-driven) so the next tick lands a full interval after the
@@ -797,27 +803,54 @@ export class WidgetDataStore {
   ): void {
     if (signal.aborted) return;
     for (const qid of staleQids) {
-      const hasInterval = qid in this.refreshIntervals;
-      const existing = this.data[qid];
-      const hasRows = existing !== undefined && (existing.rows?.length ?? 0) > 0;
-      if (hasInterval && hasRows) {
-        // Keep last-good rows; surface a transient error; back off.
-        this.errors[qid] = message;
-        this.failCounts.set(qid, (this.failCounts.get(qid) ?? 0) + 1);
-      } else {
-        // No rows to preserve (or not a live source): blank + error.
-        this.data[qid] = { columns: [], rows: [] };
-        this.errors[qid] = message;
-        if (hasInterval)
-          this.failCounts.set(qid, (this.failCounts.get(qid) ?? 0) + 1);
-      }
-      this.paramSnapshotKey[qid] = snapshotKey(
-        this.restrictToQid(qid, fullSnapshot),
-      );
-      this.forced.delete(qid);
-      // Reschedule at the backed-off delay (scheduleTimer reads failCounts).
-      if (hasInterval) this.scheduleTimer(qid);
+      this.recordQidFailure(qid, fullSnapshot, message);
     }
+  }
+
+  /**
+   * Record a single qid's refetch failure — the ONE place both failure channels
+   * converge (endpoint/network/HTTP via `applyEndpointError`, and a 200 whose
+   * per-qid `errors` map names this qid via `applyResponse`). Behaviourally
+   * identical for a given qid regardless of channel:
+   *
+   *   - interval qid WITH prior non-empty rows → keep the rows (do NOT blank
+   *     `data[qid]`), set `errors[qid]` as an internal indicator (`readEntry`
+   *     drops it from the visible result while rows exist), increment
+   *     `failCounts`, and reschedule at the backed-off delay;
+   *   - interval qid with NO prior rows → blank + error, increment `failCounts`,
+   *     back off (a live source whose FIRST fetch fails shows a clear error);
+   *   - non-interval qid → blank + error, no `failCounts` (unchanged param-
+   *     driven behaviour).
+   *
+   * Always advances `paramSnapshotKey` (so we don't tight-loop outside the
+   * timer) and clears `forced`. Never resets `failCounts` — only a genuine
+   * success (in `applyResponse`) does.
+   */
+  private recordQidFailure(
+    qid: string,
+    fullSnapshot: ParamSnapshot,
+    message: string,
+  ): void {
+    const hasInterval = qid in this.refreshIntervals;
+    const existing = this.data[qid];
+    const hasRows = existing !== undefined && (existing.rows?.length ?? 0) > 0;
+    if (hasInterval && hasRows) {
+      // Keep last-good rows; surface a transient error; back off.
+      this.errors[qid] = message;
+      this.failCounts.set(qid, (this.failCounts.get(qid) ?? 0) + 1);
+    } else {
+      // No rows to preserve (or not a live source): blank + error.
+      this.data[qid] = { columns: [], rows: [] };
+      this.errors[qid] = message;
+      if (hasInterval)
+        this.failCounts.set(qid, (this.failCounts.get(qid) ?? 0) + 1);
+    }
+    this.paramSnapshotKey[qid] = snapshotKey(
+      this.restrictToQid(qid, fullSnapshot),
+    );
+    this.forced.delete(qid);
+    // Reschedule at the backed-off delay (scheduleTimer reads failCounts).
+    if (hasInterval) this.scheduleTimer(qid);
   }
 
   /**

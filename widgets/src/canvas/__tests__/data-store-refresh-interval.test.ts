@@ -517,6 +517,87 @@ describe("WidgetDataStore — refresh failure handling", () => {
     store.dispose();
   });
 
+  it("a 200-with-per-qid-error keeps last-good rows + backs off like a network failure", async () => {
+    vi.useFakeTimers();
+    stubVisibility();
+    let mode: "ok" | "qiderr" = "ok";
+    const fetchMock = vi.fn(async () =>
+      mode === "qiderr"
+        ? jsonResponse({ data: {}, errors: { q0: "boom" } })
+        : jsonResponse({
+            data: { q0: { columns: ["v"], rows: [{ v: 1 }] } },
+            errors: {},
+          }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = new WidgetDataStore({
+      data: { q0: { columns: ["v"], rows: [{ v: 0 }] } },
+      resolveUrl: "/data",
+      config: { type: "metric", props: { _queryId: "q0", refreshInterval: 5000 } },
+      params: createParamsStore(),
+    });
+    store.start();
+
+    // Success first (v -> 1).
+    await vi.advanceTimersByTimeAsync(5000);
+    expect((await store.ensureFresh("q0")).rows).toEqual([{ v: 1 }]);
+
+    // Tick returns HTTP 200 with a per-qid error → last-good rows kept, no
+    // visible error, backoff engaged (not the normal interval, failCounts kept).
+    mode = "qiderr";
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const afterErr = await store.ensureFresh("q0");
+    expect(afterErr.rows).toEqual([{ v: 1 }]); // last-good, not blanked
+    expect(afterErr.error).toBeUndefined();
+
+    // Backoff *2 (10000), then *4 (20000) — identical to the network case.
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(2); // normal interval does NOT retry
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(3); // *2 fires
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(fetchMock).toHaveBeenCalledTimes(3); // still within *4
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(fetchMock).toHaveBeenCalledTimes(4); // *4 fires
+
+    // A genuine success clears the error and resets cadence + backoff.
+    mode = "ok";
+    await vi.advanceTimersByTimeAsync(40000); // that attempt was at *8 backoff
+    const recovered = await store.ensureFresh("q0");
+    expect(recovered.rows).toEqual([{ v: 1 }]);
+    expect(recovered.error).toBeUndefined();
+    const callsAtRecovery = fetchMock.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(5000); // normal cadence restored
+    expect(fetchMock).toHaveBeenCalledTimes(callsAtRecovery + 1);
+
+    store.dispose();
+  });
+
+  it("a NON-interval qid with a 200-per-qid-error still blanks + errors", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ data: {}, errors: { q0: "sql failed" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const params = createParamsStore();
+    const store = new WidgetDataStore({
+      data: { q0: { columns: ["v"], rows: [{ v: 7 }] } },
+      depMap: { region: ["q0"] },
+      resolveUrl: "/data",
+      config: { type: "metric", props: { sql: "SELECT $region", _queryId: "q0" } },
+      harvestedParams: { region: "us" },
+      params,
+    });
+
+    params.set("region", "eu");
+    const entry = await store.ensureFresh("q0");
+    // No interval → per-qid error blanks rows + surfaces the error (no regression).
+    expect(entry.rows).toEqual([]);
+    expect(entry.error).toBe("sql failed");
+  });
+
   it("blanks + errors an interval qid whose FIRST fetch fails (no last-good)", async () => {
     vi.useFakeTimers();
     stubVisibility();
