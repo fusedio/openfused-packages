@@ -199,13 +199,22 @@ The generator (run via `pnpm --filter @fusedio/widgets generate`) walks
 ```
 
 - The `components` array is sorted by `type` (deterministic, stable, agent-visible). Each
-  entry is `{type, hasChildren, isInput}`, where `isInput = !!def.writesParam`.
+  entry is `{type, hasChildren, isInput, props}`, where `isInput = !!def.writesParam` and
+  `props` is the sorted list of **allowed prop names** — the keys of the sanitized Draft-07
+  `propsSchema.properties` for that component. `props` lets the Python side surface an
+  advisory "ignored prop" signal without a hard render.
 - `components.json` is the **hard type gate**: the Python side reads it via
-  `importlib.resources` for `SUPPORTED_COMPONENTS` / `INPUT_COMPONENTS`. It is the package's
-  only build-time-emitted contract and the only thing the runtime consumes from this package
-  without JS. See [`surfaces.md`](./surfaces.md) § 8.
-- Output dir is the committed Python package by default; `OPENFUSED_WIDGETS_OUT` overrides it
-  (the freshness gate points it at a temp dir so the committed file is never touched).
+  `importlib.resources` for `SUPPORTED_COMPONENTS` / `INPUT_COMPONENTS` (and now the per-type
+  allowed-prop list). It is the package's only build-time-emitted contract and the only thing
+  the runtime consumes from this package without JS. See [`surfaces.md`](./surfaces.md) § 8.
+- A sibling **browser artifact** `src/widgets/generated/allowed-props.json` is emitted for the
+  renderer — a slim, bundle-internal `{ "<type>": ["<prop>", ...], ... }` map (no version
+  wrapper). It always lands inside `packages/widgets/src` so the browser esbuild bundles it,
+  and is **not** redirected by `OPENFUSED_WIDGETS_OUT` (that override targets only the Python
+  `components.json` dir).
+- Output dir for `components.json` is the committed Python package by default;
+  `OPENFUSED_WIDGETS_OUT` overrides it (the freshness gate points it at a temp dir so the
+  committed file is never touched).
 
 **The `writesParam` lint.** While walking, the generator runs the props through zod's
 JSON-Schema conversion *only* to lint: a component whose props expose **both** `param` and

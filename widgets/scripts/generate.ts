@@ -7,17 +7,28 @@
 //     stub) to get raw JSON Schema, then sanitize() it — used only for the LINT
 //     check below; the per-type schema files are no longer emitted.
 //   • contribute one entry to `components.json` = { version, components:
-//     [{type, hasChildren, isInput: !!def.writesParam}], generatedFrom:
-//     'packages/widgets/src/widgets' }, sorted. `components.json` is the only emitted artifact:
-//     the Python side reads it for SUPPORTED_COMPONENTS / INPUT_COMPONENTS.
+//     [{type, hasChildren, isInput: !!def.writesParam, props: string[]}],
+//     generatedFrom: 'packages/widgets/src/widgets' }, sorted. `props` is the
+//     sorted list of allowed prop names (keys of the sanitized propsSchema
+//     .properties). The Python side reads it for SUPPORTED_COMPONENTS /
+//     INPUT_COMPONENTS / allowed-prop validation.
+//
+// TWO artifacts are emitted:
+//   1. `components.json` → OUTPUT_DIR (default committed
+//      src/fused/agent_core/widgets; overridable via OPENFUSED_WIDGETS_OUT).
+//      This is the Python-facing manifest.
+//   2. `src/widgets/generated/allowed-props.json` → a slim, bundle-internal
+//      `{ "<type>": ["<prop>", ...], ... }` map for the browser renderer. It is
+//      ALWAYS written inside packages/widgets/src (so the browser esbuild bundles
+//      it) and is NOT affected by OPENFUSED_WIDGETS_OUT.
 //
 // LINT (throws): any component whose generated propsSchema.properties carries
 // BOTH `param` and `defaultValue` but `writesParam !== true` — an INPUT that forgot
 // to declare itself (it would silently fail the server-side isInput contract).
 //
-// OUTPUT DIR is overridable via OPENFUSED_WIDGETS_OUT (default the committed
-// src/fused/agent_core/widgets dir). For the gate run it points at /tmp/ofw-gen so the
-// committed components.json is never touched.
+// OUTPUT DIR (components.json) is overridable via OPENFUSED_WIDGETS_OUT (default
+// the committed src/fused/agent_core/widgets dir). For the gate run it points at
+// /tmp/ofw-gen so the committed components.json is never touched.
 //
 // recharts mitigation: importing the barrel pulls bar-chart.tsx → `recharts`,
 // whose ESM entry references browser globals at module-eval time. Under node
@@ -72,13 +83,15 @@ function installBrowserShims(): void {
 }
 
 // ----------------------------------------------------------------- output dir
+// __dirname = packages/widgets/scripts → three levels up reaches the repo root.
 const DEFAULT_OUT = path.resolve(
   __dirname,
   "..",
   "..",
   "..",
   "src",
-  "openfused",
+  "fused",
+  "agent_core",
   "widgets",
 );
 const OUTPUT_DIR = process.env.OPENFUSED_WIDGETS_OUT
@@ -91,6 +104,7 @@ interface ComponentManifestEntry {
   type: string;
   hasChildren: boolean;
   isInput: boolean;
+  props: string[];
 }
 
 async function main(): Promise<void> {
@@ -131,10 +145,13 @@ async function main(): Promise<void> {
       );
     }
 
+    const allowedProps = Object.keys(props).sort((a, b) => a.localeCompare(b));
+
     manifest.push({
       type,
       hasChildren: def.hasChildren ?? false,
       isInput: writesParam,
+      props: allowedProps,
     });
   }
 
@@ -151,7 +168,26 @@ async function main(): Promise<void> {
   );
   console.log(`  wrote components.json`);
 
-  console.log(`\nDone. Generated components.json for ${types.length} component(s)`);
+  // ---- slim browser artifact: { "<type>": ["<prop>", ...], ... }.
+  // ALWAYS inside packages/widgets/src so the browser esbuild bundles it —
+  // never redirected by OPENFUSED_WIDGETS_OUT (that targets the Python dir).
+  const allowedPropsMap: Record<string, string[]> = {};
+  for (const entry of componentsManifest.components) {
+    allowedPropsMap[entry.type] = entry.props;
+  }
+  const generatedDir = path.resolve(__dirname, "..", "src", "widgets", "generated");
+  fs.mkdirSync(generatedDir, { recursive: true });
+  const allowedPropsPath = path.join(generatedDir, "allowed-props.json");
+  fs.writeFileSync(
+    allowedPropsPath,
+    JSON.stringify(allowedPropsMap, null, 2) + "\n",
+    "utf-8",
+  );
+  console.log(`  wrote src/widgets/generated/allowed-props.json`);
+
+  console.log(
+    `\nDone. Generated components.json + allowed-props.json for ${types.length} component(s)`,
+  );
   console.log(`Output: ${OUTPUT_DIR}`);
 }
 

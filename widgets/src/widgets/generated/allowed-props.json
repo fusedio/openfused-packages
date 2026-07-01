@@ -1,0 +1,401 @@
+{
+  "agent-detail": [
+    "adapters",
+    "agentSlug",
+    "newTaskHref",
+    "sql",
+    "style",
+    "taskHref"
+  ],
+  "bar-chart": [
+    "animationMs",
+    "barColor",
+    "barOpacity",
+    "barRadius",
+    "beginAtZero",
+    "bottomMargin",
+    "clickParam",
+    "horizontal",
+    "hoverColor",
+    "rotateLabels",
+    "showGrid",
+    "showValues",
+    "sql",
+    "style",
+    "title",
+    "xAxisFontSize",
+    "xAxisLabel",
+    "yAxisFontSize",
+    "yAxisLabel"
+  ],
+  "button": [
+    "action",
+    "executor",
+    "label",
+    "style",
+    "submit",
+    "variant"
+  ],
+  "camera-input": [
+    "facingMode",
+    "label",
+    "param",
+    "style"
+  ],
+  "canvas": [
+    "allowAddNodes",
+    "allowConnectNodes",
+    "allowDeleteNodes",
+    "allowMoveNodes",
+    "allowResizeNodes",
+    "background",
+    "comments",
+    "edges",
+    "editable",
+    "enableComments",
+    "fitViewPadding",
+    "folderBands",
+    "folders",
+    "layout",
+    "nodes",
+    "showControls",
+    "viewport"
+  ],
+  "checkbox-group": [
+    "defaultSelected",
+    "disabled",
+    "label",
+    "maxSelected",
+    "minSelected",
+    "options",
+    "param",
+    "sql",
+    "style"
+  ],
+  "color-input": [
+    "defaultValue",
+    "disabled",
+    "label",
+    "param",
+    "showValue",
+    "style"
+  ],
+  "datetime-input": [
+    "defaultValue",
+    "disabled",
+    "label",
+    "max",
+    "min",
+    "mode",
+    "param",
+    "style"
+  ],
+  "diff": [
+    "after",
+    "before",
+    "diff",
+    "newLabel",
+    "oldLabel",
+    "style"
+  ],
+  "div": [
+    "style"
+  ],
+  "donut-chart": [
+    "animationMs",
+    "colors",
+    "innerRadius",
+    "outerRadius",
+    "showCenterTotal",
+    "showLabels",
+    "showLegend",
+    "sql",
+    "style",
+    "title"
+  ],
+  "dropdown": [
+    "defaultValue",
+    "disabled",
+    "label",
+    "nullable",
+    "options",
+    "param",
+    "placeholder",
+    "sql",
+    "style"
+  ],
+  "file-upload": [
+    "accept",
+    "label",
+    "maxSizeMb",
+    "multiple",
+    "param",
+    "style"
+  ],
+  "form": [
+    "param",
+    "style",
+    "submitLabel"
+  ],
+  "fused-map": [
+    "autoSend",
+    "autoSendDebounceMs",
+    "basemap",
+    "centerLat",
+    "centerLng",
+    "layers",
+    "maxZoom",
+    "minZoom",
+    "param",
+    "showBasemapSwitcher",
+    "showControls",
+    "showLayerPanel",
+    "showLegend",
+    "showScale",
+    "style",
+    "zoom"
+  ],
+  "gallery-input": [
+    "defaultValue",
+    "label",
+    "options",
+    "param",
+    "style"
+  ],
+  "heatmap-chart": [
+    "highColor",
+    "lowColor",
+    "showValues",
+    "sql",
+    "style",
+    "title"
+  ],
+  "html": [
+    "style",
+    "value"
+  ],
+  "iframe": [
+    "allow",
+    "src",
+    "style",
+    "title"
+  ],
+  "image": [
+    "alt",
+    "objectFit",
+    "src",
+    "style"
+  ],
+  "line-chart": [
+    "colors",
+    "curveType",
+    "lineColor",
+    "showArea",
+    "showDots",
+    "showGrid",
+    "showLegend",
+    "sql",
+    "style",
+    "title",
+    "xAxisLabel",
+    "yAxisLabel"
+  ],
+  "map": [
+    "centerLat",
+    "centerLng",
+    "label",
+    "layers",
+    "mapStyle",
+    "param",
+    "sendParam",
+    "style",
+    "zoom"
+  ],
+  "map-bounds": [
+    "autoSend",
+    "autoSendDebounceMs",
+    "buttonLabel",
+    "centerLat",
+    "centerLng",
+    "label",
+    "mapStyle",
+    "param",
+    "style",
+    "zoom"
+  ],
+  "markdown": [
+    "sql",
+    "style",
+    "value"
+  ],
+  "metric": [
+    "color",
+    "decimals",
+    "format",
+    "label",
+    "prefix",
+    "size",
+    "sql",
+    "style",
+    "suffix",
+    "value"
+  ],
+  "number-input": [
+    "defaultValue",
+    "disabled",
+    "label",
+    "max",
+    "min",
+    "param",
+    "placeholder",
+    "step",
+    "style"
+  ],
+  "scatter-chart": [
+    "animationMs",
+    "colors",
+    "pointColor",
+    "showGrid",
+    "showLegend",
+    "sql",
+    "style",
+    "title",
+    "xAxisFontSize",
+    "xLabel",
+    "yAxisFontSize",
+    "yLabel"
+  ],
+  "secrets-manager": [
+    "style"
+  ],
+  "slider": [
+    "defaultValue",
+    "label",
+    "max",
+    "min",
+    "param",
+    "step",
+    "style"
+  ],
+  "sql-runner": [
+    "maxRows",
+    "name",
+    "sql",
+    "style"
+  ],
+  "sql-table": [
+    "aggregates",
+    "filterable",
+    "groupBy",
+    "idColumn",
+    "maxRows",
+    "parentColumn",
+    "selectionColumn",
+    "selectionParam",
+    "sortable",
+    "sql",
+    "style",
+    "title"
+  ],
+  "stacked-area-chart": [
+    "animationMs",
+    "areaOpacity",
+    "beginAtZero",
+    "bottomMargin",
+    "brushHeight",
+    "colors",
+    "curveType",
+    "rotateLabels",
+    "showBrush",
+    "showGrid",
+    "showLegend",
+    "sql",
+    "style",
+    "title",
+    "xAxisFontSize",
+    "xAxisLabel",
+    "yAxisFontSize",
+    "yAxisLabel",
+    "yMax",
+    "yMin"
+  ],
+  "stacked-bar-chart": [
+    "animationMs",
+    "barColor",
+    "beginAtZero",
+    "bottomMargin",
+    "colors",
+    "horizontal",
+    "rotateLabels",
+    "showGrid",
+    "showLegend",
+    "showValues",
+    "sql",
+    "style",
+    "title",
+    "xAxisFontSize",
+    "xAxisLabel",
+    "yAxisFontSize",
+    "yAxisLabel"
+  ],
+  "tabs": [
+    "defaultTab",
+    "style",
+    "tabs"
+  ],
+  "task-board": [
+    "boardHref",
+    "defaultGroupBy",
+    "defaultView",
+    "fill",
+    "project",
+    "sql",
+    "style",
+    "taskHref"
+  ],
+  "text": [
+    "sql",
+    "style",
+    "value",
+    "variant"
+  ],
+  "text-area": [
+    "debounceMs",
+    "defaultValue",
+    "disabled",
+    "label",
+    "param",
+    "placeholder",
+    "rows",
+    "style"
+  ],
+  "text-input": [
+    "debounceMs",
+    "defaultValue",
+    "disabled",
+    "label",
+    "param",
+    "placeholder",
+    "style",
+    "type"
+  ],
+  "video": [
+    "autoPlay",
+    "controls",
+    "loop",
+    "muted",
+    "objectFit",
+    "poster",
+    "src",
+    "style"
+  ],
+  "video-review": [
+    "defaultValue",
+    "param",
+    "qaParam",
+    "rounds",
+    "src",
+    "style",
+    "title"
+  ]
+}
