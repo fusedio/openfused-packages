@@ -358,9 +358,6 @@ function CanvasInner({ element }: ComponentRenderProps) {
     [],
   );
   const closePeek = React.useCallback(() => setPeekNodeId(null), []);
-  React.useEffect(() => {
-    if (peekNodeId && hiddenNodeIds.has(peekNodeId)) setPeekNodeId(null);
-  }, [peekNodeId, hiddenNodeIds]);
 
   // Comment mode (declared here, before `rfNodes`, so node-peek can defer to it):
   // when comment mode is on a node click must place a comment (via ReactFlow's
@@ -370,6 +367,11 @@ function CanvasInner({ element }: ComponentRenderProps) {
   React.useEffect(() => {
     setCommentMode(host.feedbackMode ?? false);
   }, [host.feedbackMode]);
+  // Close an OPEN peek when comment mode turns on: a node click now places a
+  // comment, so a lingering drawer shouldn't survive the switch.
+  React.useEffect(() => {
+    if (commentMode) setPeekNodeId(null);
+  }, [commentMode]);
 
   const runtimeStoreRef = React.useRef<CanvasRuntime["store"] | null>(null);
   const runtime = React.useMemo(() => {
@@ -631,6 +633,12 @@ function CanvasInner({ element }: ComponentRenderProps) {
         : null,
     [peekNodeId, hiddenNodeIds, laidOut],
   );
+  // Clear a dangling peek id: once the peeked node resolves to nothing (hidden, or
+  // gone from `laidOut`), drop the id so a later reappearance can't reopen a stale
+  // drawer. `peekNode` null with `peekNodeId` set is exactly that case.
+  React.useEffect(() => {
+    if (peekNodeId && !peekNode) setPeekNodeId(null);
+  }, [peekNodeId, peekNode]);
   // A name-only overview node has no title; fall back to its id with the `type:`
   // prefix stripped (e.g. "udf:foo" → "foo").
   const peekTitle = React.useCallback(
