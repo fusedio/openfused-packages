@@ -610,6 +610,10 @@ export class WidgetDataStore {
     // Cannot re-resolve without an endpoint: serve whatever we have.
     if (!this.resolveUrl) return this.readEntry(queryId);
 
+    // A disposed store never re-resolves (its in-flight fetch was aborted on
+    // dispose); serve the last-known rows.
+    if (this.disposed) return this.readEntry(queryId);
+
     if (this.isStale(queryId)) {
       await this.refetchStale();
     }
@@ -842,6 +846,13 @@ export class WidgetDataStore {
   dispose(): void {
     this.disposed = true;
     this.clearTimers();
+    // Abort any in-flight resolve so a disposed store doesn't finish a wasted
+    // round-trip. The aborted response is dropped by runFetch's signal.aborted
+    // guard; no-op when nothing is in flight.
+    if (this.inflight) {
+      this.inflight.controller.abort();
+      this.inflight = null;
+    }
     if (
       typeof document !== "undefined" &&
       typeof document.removeEventListener === "function"

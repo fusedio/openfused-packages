@@ -314,6 +314,45 @@ describe("WidgetDataStore — interval-refetch timer", () => {
     store.dispose();
   });
 
+  it("dispose aborts an in-flight resolve and its (late) response is a no-op", async () => {
+    vi.useFakeTimers();
+    stubVisibility();
+    let capturedSignal: AbortSignal | undefined;
+    let resolveFetch: ((r: unknown) => void) | undefined;
+    const fetchMock = vi.fn((_url: string, init: RequestInit) => {
+      capturedSignal = init.signal ?? undefined;
+      return new Promise((res) => {
+        resolveFetch = res;
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = new WidgetDataStore({
+      data: { q0: { columns: ["v"], rows: [{ v: 0 }] } },
+      resolveUrl: "/data",
+      config: { type: "metric", props: { _queryId: "q0", refreshInterval: 5000 } },
+      params: createParamsStore(),
+    });
+    store.start();
+
+    // Tick begins a fetch that never resolves on its own.
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(capturedSignal?.aborted).toBe(false);
+
+    // Dispose mid-flight → the in-flight request's signal is aborted.
+    store.dispose();
+    expect(capturedSignal?.aborted).toBe(true);
+
+    // The late (aborted) response must NOT mutate data or reschedule anything.
+    resolveFetch?.(
+      jsonResponse({ data: { q0: { columns: ["v"], rows: [{ v: 99 }] } }, errors: {} }),
+    );
+    await vi.advanceTimersByTimeAsync(20000);
+    expect((await store.ensureFresh("q0")).rows).toEqual([{ v: 0 }]); // unchanged
+    expect(fetchMock).toHaveBeenCalledTimes(1); // no reschedule
+  });
+
   it("dispose clears timers and removes the visibility listener", async () => {
     vi.useFakeTimers();
     const vis = stubVisibility();
