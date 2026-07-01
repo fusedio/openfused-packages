@@ -161,6 +161,39 @@ without a model turn:
   `(action, terminal) → accepted` handler that, when present, takes precedence over
   session/parley routing for `button` presses (`spec/ui/json-ui.md` §4).
 
+### 9.1 Interval refetch (live data sources)
+
+A data source may declare `props.refreshInterval` (ms) alongside its `props.sql`/`_queryId`
+to keep its rows live without a param change; `map`/`fused-map` per-layer `refreshInterval`
+is supported too (harvested per `_queryId`, like the layer's own query). A minimum floor
+(`MIN_REFRESH_INTERVAL_MS`) clamps sub-floor values up and rejects non-positive/non-finite
+ones (no timer). See `spec/ui/data/data.md` for the authoring contract.
+
+- The timer lives in **`WidgetDataStore`** (`start()`/`dispose()`), **not** the SDK hook. Per
+  `_queryId` a `setTimeout` fires, force-marks the qid stale, and reuses the existing
+  `refetchStale()` path — so single-flight coalescing, `only:`-scoping, and supersede-abort
+  all apply unchanged. Every successful resolve resets that qid's clock (the next tick lands a
+  full interval after the most recent fetch, timer- or param-driven).
+- **Visibility:** a `visibilitychange` listener pauses all timers while hidden and, on return
+  to visible, does one immediate refetch of every interval qid before resuming the schedule.
+- **Failure:** a failed refetch keeps the **last-good rows visible** (does not blank) and backs
+  off exponentially (`min(interval · 2^failures, MAX_BACKOFF_MS)`); a success clears the error
+  and resets the backoff. A qid whose *first* fetch fails (no rows yet) still blanks + errors.
+- **Lifecycle contract:** `start()`/`dispose()` must be wired so timers are cleaned up on store/
+  runtime **rebuild**, not only on unmount — the render call sites use the
+  `useEffect(() => { …start(); return () => …dispose(); }, [store])` / `[runtime]` pattern (the
+  canvas renderer keys it on the runtime memo). `start()` deliberately does **not** fetch, so a
+  frequent rebuild costs only a reschedule, never a refetch storm. On the canvas, `dispose()`
+  clears only the per-node `WidgetDataStore` timers; the **shared canvas param store survives**
+  (it is reused across rebuilds, so user input/selection is not wiped).
+- **Known limitations:** (1) timers run only when `resolveUrl` is set (the server-resolved host
+  modes) — the read-only sandbox has nothing to re-resolve against. (2) There is **no visible**
+  stale/error indicator alongside kept rows: the pinned SDK `@fusedio/widget-sdk@0.4.0`
+  `useDuckDbSqlQuery` blanks rows on any truthy `SqlQueryResult.error`, so we prioritise keeping
+  data on screen and suppress the error from the visible result while rows exist (the failure is
+  still recorded internally and drives the backoff). A visible indicator alongside kept rows
+  needs a Layer-1 SDK affordance and is a deferred follow-up.
+
 ## 10. Heavy renderers stay node-importable / bundle-aware
 
 - Map renderers import `maplibre-gl` and `deck.gl` **dynamically**, so the widget modules

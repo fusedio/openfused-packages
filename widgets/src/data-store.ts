@@ -201,6 +201,86 @@ export function collectConfigQueryIds(config: unknown): string[] {
 }
 
 /**
+ * Minimum refetch interval (ms). A 1s floor guardrails against per-tick Lambda
+ * cost on deployed / shared dashboards: an author-supplied value below this is
+ * clamped up rather than honored verbatim.
+ */
+export const MIN_REFRESH_INTERVAL_MS = 1000;
+
+/**
+ * Ceiling for the exponential backoff applied after a failed interval refetch:
+ * the next attempt lands at `min(interval * 2 ** failures, MAX_BACKOFF_MS)`, so
+ * a persistently-failing live source retries at most every 5 minutes rather
+ * than hammering the resolver.
+ */
+export const MAX_BACKOFF_MS = 5 * 60_000;
+
+/**
+ * Harvest `{queryId -> intervalMs}` from a widget config, mirroring the
+ * tree-walk of `collectConfigQueryIds` but recording each node's (and each
+ * map/fused-map layer's) `refreshInterval` keyed by its `_queryId`.
+ *
+ * `refreshInterval` is author-authored — a trust boundary. Only a finite
+ * `number > 0` yields an entry; a value in `(0, MIN_REFRESH_INTERVAL_MS)`
+ * clamps up to the floor; everything else (missing, `<= 0`, `NaN`, non-number)
+ * produces no entry, so those queries get no timer. Same defensive tree-walk as
+ * `collectConfigQueryIds` (non-object nodes / odd props / non-array
+ * children/layers/nodes are skipped, not thrown).
+ */
+export function collectRefreshIntervals(
+  config: unknown,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  const normalize = (v: unknown): number | undefined => {
+    if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return undefined;
+    return v < MIN_REFRESH_INTERVAL_MS ? MIN_REFRESH_INTERVAL_MS : v;
+  };
+  const record = (qid: unknown, interval: unknown): void => {
+    if (typeof qid !== "string" || qid === "") return;
+    const ms = normalize(interval);
+    if (ms !== undefined) out[qid] = ms;
+  };
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (!node || typeof node !== "object") return;
+    const rec = node as Record<string, unknown>;
+    const props =
+      rec.props && typeof rec.props === "object"
+        ? (rec.props as Record<string, unknown>)
+        : {};
+    record(props._queryId, props.refreshInterval);
+    // map / fused-map: each data layer is stamped on the layer, not the node.
+    if (rec.type === "map" || rec.type === "fused-map") {
+      const layers = props.layers;
+      if (Array.isArray(layers)) {
+        for (const layer of layers) {
+          if (layer && typeof layer === "object") {
+            const l = layer as Record<string, unknown>;
+            record(l._queryId, l.refreshInterval);
+          }
+        }
+      }
+    }
+    // children: a list of nodes, or (defensively) a single node object.
+    if (Array.isArray(rec.children)) rec.children.forEach(visit);
+    else if (rec.children && typeof rec.children === "object")
+      visit(rec.children);
+    // canvas: per-node widget subtrees live under props.nodes[].widget.
+    if (rec.type === "canvas" && Array.isArray(props.nodes)) {
+      for (const cn of props.nodes) {
+        if (cn && typeof cn === "object")
+          visit((cn as Record<string, unknown>).widget);
+      }
+    }
+  };
+  visit(config);
+  return out;
+}
+
+/**
  * Comment-loss guard for the agent push loop (json-ui-comments.md §4–5).
  *
  * On every agent `widget push` the page rebuilds its params store and reseeds
@@ -315,6 +395,13 @@ export class WidgetDataStore {
   private readonly allParamNames: string[];
 
   /**
+   * Per-qid refetch interval (ms), harvested from the config and restricted to
+   * the qids THIS store tracks. Consumed by the interval-refetch timer (next
+   * task); a qid absent here has no timer.
+   */
+  private readonly refreshIntervals: Record<string, number>;
+
+  /**
    * Per-qid: the snapshot KEY (stable string) the current rows were resolved
    * with. Seeded from `harvestedParams` so the first mount's default broadcasts
    * don't look stale.
@@ -327,6 +414,50 @@ export class WidgetDataStore {
     controller: AbortController;
     promise: Promise<void>;
   } | null = null;
+
+  /**
+   * Qids force-marked stale by a timer tick (or visibility resume). `isStale`
+   * returns true for a forced qid regardless of params/rows; `applyResponse` /
+   * `applyEndpointError` clear it once the fetch is handled so it doesn't loop.
+   */
+  private forced = new Set<string>();
+
+  /** Per-interval-qid `setTimeout` handle. Single-shot, rescheduled each tick. */
+  private timers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /**
+   * Consecutive refetch-failure count per interval qid. Drives the backoff
+   * delay in `scheduleTimer`; reset to 0 (deleted) by a successful
+   * `applyResponse`. A manual param/write-driven failure does NOT reset it —
+   * only a success does.
+   */
+  private failCounts = new Map<string, number>();
+
+  /** Set once `dispose()` runs; guards every reschedule path. */
+  private disposed = false;
+
+  /** True while the page is hidden — timers are cleared and not rescheduled. */
+  private hidden = false;
+
+  /** True once `start()` has wired timers + the visibility listener (idempotent). */
+  private started = false;
+
+  /** Bound `visibilitychange` handler, retained so `dispose` can remove it. */
+  private readonly onVisibilityChange = (): void => {
+    if (this.disposed) return;
+    const state =
+      typeof document !== "undefined" ? document.visibilityState : "visible";
+    if (state === "hidden") {
+      this.hidden = true;
+      this.clearTimers();
+    } else {
+      this.hidden = false;
+      // Resume: refetch every interval qid once immediately, then reschedule.
+      for (const qid of Object.keys(this.refreshIntervals)) this.forced.add(qid);
+      void this.refetchStale();
+      for (const qid of Object.keys(this.refreshIntervals)) this.scheduleTimer(qid);
+    }
+  };
 
   constructor(options: WidgetDataStoreOptions) {
     this.data = { ...(options.data ?? {}) };
@@ -368,6 +499,16 @@ export class WidgetDataStore {
     this.qidToParams = qidToParams;
     this.allParamNames = [...allNames].sort();
 
+    // Harvest refetch intervals, restricted to the qids this store owns (the
+    // qidToParams keys) — the canvas per-node store must not own another node's
+    // intervals, matching the queryIds isolation enforced above.
+    const allIntervals = collectRefreshIntervals(this.config);
+    const refreshIntervals: Record<string, number> = {};
+    for (const qid of Object.keys(qidToParams)) {
+      if (qid in allIntervals) refreshIntervals[qid] = allIntervals[qid];
+    }
+    this.refreshIntervals = refreshIntervals;
+
     // Seed each qid's snapshot from the harvested defaults the initial server
     // resolve used. The snapshot key is computed over the qid's OWN params only
     // (restricted to harvested values), matching what `currentSnapshotFor`
@@ -378,6 +519,15 @@ export class WidgetDataStore {
         this.restrictToQid(qid, harvested),
       );
     }
+  }
+
+  /**
+   * The harvested refetch interval (ms) for a qid this store owns, or
+   * `undefined` when the qid has no configured interval (→ no timer). Consumed
+   * by the interval-refetch timer (next task).
+   */
+  refreshIntervalFor(qid: string): number | undefined {
+    return this.refreshIntervals[qid];
   }
 
   /** Build `{name: value}` over a qid's params, reading from a source map. */
@@ -405,6 +555,10 @@ export class WidgetDataStore {
 
   /** A qid is stale if its current param values differ from the backing rows'. */
   private isStale(qid: string): boolean {
+    // Force-stale: a timer tick / visibility-resume marks the qid so it
+    // re-resolves even when its params are unchanged (the whole point of an
+    // interval refetch). Cleared in applyResponse / applyEndpointError.
+    if (this.forced.has(qid)) return true;
     // Fetch-on-mount: a query with no resolved rows AND no recorded error has
     // never been resolved, so it is stale regardless of params. This is what
     // makes a param-free query resolve on first paint when `data` was seeded
@@ -427,7 +581,19 @@ export class WidgetDataStore {
       const error = queryId != null ? this.errors[queryId] ?? null : null;
       return { rows: [], columns: [], ...(error ? { error } : {}) };
     }
-    return { rows: entry.rows ?? [], columns: entry.columns ?? [] };
+    const rows = entry.rows ?? [];
+    const columns = entry.columns ?? [];
+    // A live source that failed a refetch keeps its last-good rows and holds a
+    // transient error INTERNALLY (errors[qid]) — but the pinned SDK hook
+    // (useDuckDbSqlQuery, 0.4.0) discards rows whenever `error` is truthy. So
+    // when we have non-empty rows we must NOT surface the error: keeping the
+    // data on screen wins over a visible error badge. The error still surfaces
+    // for the blank cases (empty/absent rows: non-interval failures and
+    // interval-first-fetch failures). A visible stale/error indicator alongside
+    // kept rows is deferred — it needs an SDK affordance (see journal).
+    if (rows.length > 0) return { rows, columns };
+    const error = queryId != null ? this.errors[queryId] : undefined;
+    return { rows, columns, ...(error ? { error } : {}) };
   }
 
   /**
@@ -444,6 +610,10 @@ export class WidgetDataStore {
     // Cannot re-resolve without an endpoint: serve whatever we have.
     if (!this.resolveUrl) return this.readEntry(queryId);
 
+    // A disposed store never re-resolves (its in-flight fetch was aborted on
+    // dispose); serve the last-known rows.
+    if (this.disposed) return this.readEntry(queryId);
+
     if (this.isStale(queryId)) {
       await this.refetchStale();
     }
@@ -453,45 +623,60 @@ export class WidgetDataStore {
   /**
    * Coalesced single-flight re-resolve. Computes the set of stale qids, the
    * union of which is the `only:` list, and POSTs the FULL current snapshot of
-   * ALL depMap params. One POST per param-change burst:
-   *   - if a fetch for the EXACT current ALL-params snapshot is already in
-   *     flight, await it (coalesce);
-   *   - otherwise abort any older in-flight fetch (it was for a stale snapshot)
-   *     and start a new one.
-   * Stale responses are discarded by comparing the snapshot key at resolve time
-   * against the latest snapshot (AbortController + identity guard).
+   * ALL depMap params. One POST per param-change burst.
+   *
+   * Every pass re-reads the CURRENT live snapshot and bases both the
+   * supersede decision AND the fetch body on it (never on a snapshot captured
+   * at entry). This is what keeps a param change that lands DURING an await from
+   * being clobbered:
+   *   - in-flight covers the CURRENT params (same snapKey) → coalesce (await it)
+   *     and loop again: a qid forced stale mid-flight may remain unresolved, or
+   *     params may have changed during the await, so re-decide against live
+   *     state rather than returning;
+   *   - in-flight is for a DIFFERENT snapshot than the LIVE one → it is stale
+   *     relative to current params → supersede (abort) and fetch fresh;
+   *   - nothing stale → return (the drained/covering fetch already covered us,
+   *     so no redundant POST).
+   * A NEWER fetch for the current params is NEVER aborted (its snapKey equals
+   * the live snapKey → coalesced, not superseded). Stale responses are also
+   * discarded by the snapshot-identity guard in `runFetch`.
    */
   private async refetchStale(): Promise<void> {
-    const fullSnapshot = this.params.getSnapshotMany(this.allParamNames);
-    const snapKey = snapshotKey(fullSnapshot);
+    for (;;) {
+      const fullSnapshot = this.params.getSnapshotMany(this.allParamNames);
+      const snapKey = snapshotKey(fullSnapshot);
 
-    // Coalesce: an in-flight fetch for the identical snapshot already covers us.
-    if (this.inflight && this.inflight.snapKey === snapKey) {
-      await this.inflight.promise;
+      if (this.inflight) {
+        if (this.inflight.snapKey === snapKey) {
+          // The in-flight fetch is for the CURRENT params — coalesce onto it.
+          // Loop again afterwards: it may not have covered a qid forced stale
+          // mid-flight, or params may have moved during the await.
+          await this.inflight.promise;
+          continue;
+        }
+        // The in-flight fetch is for a DIFFERENT snapshot than the live params
+        // → it is stale → supersede it. (Never reached for a fetch matching the
+        // live snapKey, so a newer fetch for the current params is safe.)
+        this.inflight.controller.abort();
+        this.inflight = null;
+      }
+
+      // Both the `only:` list and the body params derive from the SAME live
+      // snapshot read this pass, so they can never disagree.
+      const staleQids = this.computeStaleQids();
+      if (staleQids.length === 0) return;
+
+      const controller = new AbortController();
+      const promise = this.runFetch(
+        snapKey,
+        fullSnapshot,
+        staleQids,
+        controller.signal,
+      );
+      this.inflight = { snapKey, controller, promise };
+      await promise;
       return;
     }
-
-    // Supersede: a newer snapshot aborts the older in-flight fetch. Its response
-    // (if it still arrives) is ignored by the snapshot-identity guard below.
-    if (this.inflight) {
-      this.inflight.controller.abort();
-      this.inflight = null;
-    }
-
-    // Recompute the stale set against the snapshot we're about to send so the
-    // `only:` list matches the body's params exactly.
-    const staleQids = this.computeStaleQids();
-    if (staleQids.length === 0) return;
-
-    const controller = new AbortController();
-    const promise = this.runFetch(
-      snapKey,
-      fullSnapshot,
-      staleQids,
-      controller.signal,
-    );
-    this.inflight = { snapKey, controller, promise };
-    await promise;
   }
 
   private computeStaleQids(): string[] {
@@ -570,10 +755,15 @@ export class WidgetDataStore {
     const errors = response?.errors ?? {};
     for (const qid of staleQids) {
       if (Object.prototype.hasOwnProperty.call(errors, qid)) {
-        // Per-qid error: rows:[] + error, never blanks the whole widget.
-        this.data[qid] = { columns: [], rows: [] };
-        this.errors[qid] = errors[qid];
-      } else if (Object.prototype.hasOwnProperty.call(data, qid)) {
+        // A 200 with a per-qid error IS a failure for this qid — route it
+        // through the shared failure path so a live source keeps its last-good
+        // rows and backs off exactly like an endpoint failure. Do NOT fall
+        // through to the success tail (no backoff reset, no normal-interval
+        // reschedule).
+        this.recordQidFailure(qid, fullSnapshot, errors[qid]);
+        continue;
+      }
+      if (Object.prototype.hasOwnProperty.call(data, qid)) {
         this.data[qid] = data[qid];
         delete this.errors[qid];
       } else {
@@ -581,20 +771,44 @@ export class WidgetDataStore {
         // leave any existing rows untouched, but if we have none yet record an
         // empty entry so the fetch-on-mount check in isStale (which treats
         // `undefined` rows as unresolved) doesn't spin re-fetching a qid the
-        // server won't resolve. The snapshot is still advanced below.
-        if (this.data[qid] === undefined)
-          this.data[qid] = { columns: [], rows: [] };
+        // server won't resolve. The snapshot is still advanced below. This is
+        // NOT a failure — don't touch backoff.
       }
+      if (this.data[qid] === undefined)
+        this.data[qid] = { columns: [], rows: [] };
       this.paramSnapshotKey[qid] = snapshotKey(
         this.restrictToQid(qid, fullSnapshot),
       );
+      // A forced (timer-driven) fetch is now handled — clear it so isStale
+      // stops returning true for this qid.
+      this.forced.delete(qid);
+      // Genuine success (data returned, or a benign not-returned qid) clears any
+      // backoff so the next tick is at the normal interval again.
+      this.failCounts.delete(qid);
+      // Reset the refetch clock on EVERY successful resolve (timer- or
+      // param/write-driven) so the next tick lands a full interval after the
+      // most recent fetch — no matter what triggered it.
+      if (qid in this.refreshIntervals) this.scheduleTimer(qid);
     }
   }
 
   /**
-   * Endpoint-level failure (network/HTTP). Surface the error per stale qid
-   * (rows:[] + error) so the bound charts show an error rather than hanging,
-   * and advance their snapshot so we don't tight-loop retrying the same params.
+   * Endpoint-level failure (network/HTTP).
+   *
+   * Live (interval) qid that already holds good rows: keep the last-good rows,
+   * surface the error as a transient indicator (rows are NOT blanked), and back
+   * off — increment the fail count and reschedule at the exponential delay
+   * (`scheduleTimer` consults `failCounts`). This is what lets a live dashboard
+   * keep showing the last value through a resolver blip.
+   *
+   * Otherwise (a non-interval / param-driven qid, or an interval qid whose very
+   * FIRST fetch failed so there are no rows to keep): today's behavior — blank
+   * rows + error so the widget shows a clear error rather than an empty-but-
+   * "fresh" chart.
+   *
+   * In all cases advance `paramSnapshotKey` so we don't tight-loop retrying the
+   * same params outside the timer, and clear `forced` so the failed tick's force
+   * flag doesn't keep the qid stale.
    */
   private applyEndpointError(
     staleQids: string[],
@@ -604,11 +818,146 @@ export class WidgetDataStore {
   ): void {
     if (signal.aborted) return;
     for (const qid of staleQids) {
+      this.recordQidFailure(qid, fullSnapshot, message);
+    }
+  }
+
+  /**
+   * Record a single qid's refetch failure — the ONE place both failure channels
+   * converge (endpoint/network/HTTP via `applyEndpointError`, and a 200 whose
+   * per-qid `errors` map names this qid via `applyResponse`). Behaviourally
+   * identical for a given qid regardless of channel:
+   *
+   *   - interval qid WITH prior non-empty rows → keep the rows (do NOT blank
+   *     `data[qid]`), set `errors[qid]` as an internal indicator (`readEntry`
+   *     drops it from the visible result while rows exist), increment
+   *     `failCounts`, and reschedule at the backed-off delay;
+   *   - interval qid with NO prior rows → blank + error, increment `failCounts`,
+   *     back off (a live source whose FIRST fetch fails shows a clear error);
+   *   - non-interval qid → blank + error, no `failCounts` (unchanged param-
+   *     driven behaviour).
+   *
+   * Always advances `paramSnapshotKey` (so we don't tight-loop outside the
+   * timer) and clears `forced`. Never resets `failCounts` — only a genuine
+   * success (in `applyResponse`) does.
+   */
+  private recordQidFailure(
+    qid: string,
+    fullSnapshot: ParamSnapshot,
+    message: string,
+  ): void {
+    const hasInterval = qid in this.refreshIntervals;
+    const existing = this.data[qid];
+    const hasRows = existing !== undefined && (existing.rows?.length ?? 0) > 0;
+    if (hasInterval && hasRows) {
+      // Keep last-good rows; surface a transient error; back off.
+      this.errors[qid] = message;
+      this.failCounts.set(qid, (this.failCounts.get(qid) ?? 0) + 1);
+    } else {
+      // No rows to preserve (or not a live source): blank + error.
       this.data[qid] = { columns: [], rows: [] };
       this.errors[qid] = message;
-      this.paramSnapshotKey[qid] = snapshotKey(
-        this.restrictToQid(qid, fullSnapshot),
-      );
+      if (hasInterval)
+        this.failCounts.set(qid, (this.failCounts.get(qid) ?? 0) + 1);
     }
+    this.paramSnapshotKey[qid] = snapshotKey(
+      this.restrictToQid(qid, fullSnapshot),
+    );
+    this.forced.delete(qid);
+    // Reschedule at the backed-off delay (scheduleTimer reads failCounts).
+    if (hasInterval) this.scheduleTimer(qid);
+  }
+
+  /**
+   * Start the interval-refetch timers and the page-visibility wiring.
+   *
+   * No-op without a `resolveUrl` (the read-only sandbox can't re-resolve) and
+   * idempotent (a second call doesn't double-schedule). Does NOT fetch
+   * immediately — it only schedules timers; the sole immediate refetch happens
+   * on a visibility hidden→visible transition. (The store is disposed+restarted
+   * on every host rebuild, so a fetch-on-start would turn unrelated rebuilds
+   * into a refetch storm.)
+   */
+  start(): void {
+    if (!this.resolveUrl || this.started || this.disposed) return;
+    this.started = true;
+    for (const qid of Object.keys(this.refreshIntervals)) this.scheduleTimer(qid);
+    if (
+      typeof document !== "undefined" &&
+      typeof document.addEventListener === "function"
+    ) {
+      document.addEventListener("visibilitychange", this.onVisibilityChange);
+    }
+  }
+
+  /** Clear all timers and remove the visibility listener; guards reschedules. */
+  dispose(): void {
+    this.disposed = true;
+    this.clearTimers();
+    // Abort any in-flight resolve so a disposed store doesn't finish a wasted
+    // round-trip. The aborted response is dropped by runFetch's signal.aborted
+    // guard; no-op when nothing is in flight.
+    if (this.inflight) {
+      this.inflight.controller.abort();
+      this.inflight = null;
+    }
+    if (
+      typeof document !== "undefined" &&
+      typeof document.removeEventListener === "function"
+    ) {
+      document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    }
+  }
+
+  /** Clear every pending timer (keeps `refreshIntervals` so resume can reschedule). */
+  private clearTimers(): void {
+    for (const handle of this.timers.values()) clearTimeout(handle);
+    this.timers.clear();
+  }
+
+  /**
+   * (Re)schedule a single qid's timer: clear any pending one and set a fresh
+   * single-shot `setTimeout` for its interval. A tick force-marks the qid,
+   * runs the shared coalesced refetch, and reschedules — unless disposed or
+   * hidden. Never schedules for a qid without a configured interval.
+   */
+  private scheduleTimer(qid: string): void {
+    if (this.disposed || this.hidden) return;
+    const interval = this.refreshIntervals[qid];
+    if (interval === undefined) return;
+    const existing = this.timers.get(qid);
+    if (existing !== undefined) clearTimeout(existing);
+    const handle = setTimeout(() => {
+      void this.tick(qid);
+    }, this.nextDelay(qid, interval));
+    this.timers.set(qid, handle);
+  }
+
+  /**
+   * The single source of truth for a qid's next-tick delay: the normal interval
+   * when it's healthy (`failCounts` 0), otherwise the exponential backoff
+   * `min(interval * 2 ** failures, MAX_BACKOFF_MS)`. Every reschedule path (tick
+   * and applyEndpointError) goes through `scheduleTimer` → here, so the backoff
+   * always wins over the normal interval while failures persist, and the normal
+   * cadence resumes the instant a success resets the counter.
+   */
+  private nextDelay(qid: string, interval: number): number {
+    const failures = this.failCounts.get(qid) ?? 0;
+    if (failures === 0) return interval;
+    return Math.min(interval * 2 ** failures, MAX_BACKOFF_MS);
+  }
+
+  /**
+   * One timer tick: force the qid stale, run the shared single-flight refetch
+   * (its `only:` scoping + coalescing + supersede-abort all apply), then
+   * reschedule. `applyResponse` already reschedules on success; this reschedule
+   * covers the paths where no successful apply ran (e.g. coalesced-away or
+   * errored) so the cadence never stalls. Guarded on `!disposed && !hidden`.
+   */
+  private async tick(qid: string): Promise<void> {
+    if (this.disposed || this.hidden) return;
+    this.forced.add(qid);
+    await this.refetchStale();
+    if (!this.disposed && !this.hidden) this.scheduleTimer(qid);
   }
 }

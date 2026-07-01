@@ -415,6 +415,17 @@ function CanvasInner({ element }: ComponentRenderProps) {
     clearRunning,
   ]);
 
+  // Drive the per-node refresh timers off the runtime's lifecycle. The cleanup
+  // fires on ANY runtime rebuild (its dep array churns on more than data — e.g.
+  // an onStartLoading/clearRunning identity change from a folder collapse) as
+  // well as on unmount: it disposes the OLD runtime's node-store timers, then
+  // start()s the new one. start() does NOT fetch (see WidgetDataStore.start),
+  // so these frequent rebuilds cost only a timer reschedule, no refetch storm.
+  React.useEffect(() => {
+    runtime.start();
+    return () => runtime.dispose();
+  }, [runtime]);
+
   const folderNodes = React.useMemo<Node[]>(() => {
     const out: Node[] = [];
     for (const box of folderBoxes) {
