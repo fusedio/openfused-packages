@@ -47,7 +47,11 @@ const ALLOWED_PROPS: Record<string, string[]> = allowedPropsMap;
 //   • `style`   — coerced generically by `coerceStyleProp` and read via
 //     `parseStyle`; the universal layer still declares `css`, so `style` is not
 //     in some widgets' generated prop lists.
-const ALWAYS_ALLOWED = new Set(["_queryId", "style"]);
+//   • `comments` / `__comments` — framework-reserved page-level comment seeds:
+//     `harvestInitialParams` (data-store.ts) reads `props.comments` (and accepts
+//     `props.__comments`) off ANY node, incl. non-`canvas` roots, so they are
+//     valid on nodes whose per-type schema doesn't declare them.
+const ALWAYS_ALLOWED = new Set(["_queryId", "style", "comments", "__comments"]);
 
 // --------------------------------------------------------------- node + props
 export interface UINode {
