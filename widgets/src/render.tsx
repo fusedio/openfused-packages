@@ -31,6 +31,8 @@ import {
   type FusedWidgetBridge,
 } from "@fusedio/widget-sdk";
 
+import { LoadingBusContext, createLoadingBus } from "./loading-bus";
+
 import { registry, type ComponentRenderer } from "./widgets";
 import allowedPropsMap from "./widgets/generated/allowed-props.json";
 
@@ -276,10 +278,27 @@ export function RenderTree({
   /** Page-level siblings rendered UNDER the bridge (e.g. the comments layer). */
   children?: React.ReactNode;
 }): React.ReactElement {
+  // One bus per tree; stable across re-renders (only config changes replace it).
+  const busRef = React.useRef(createLoadingBus());
+  const bus = busRef.current;
+
+  // Wrap the bridge's edge callbacks to feed the loading bus. Memoised on
+  // `bridge` identity: a genuinely new bridge (config change) gets new
+  // wrappers; the bus ref stays stable throughout.
+  const trackedBridge = React.useMemo<FusedWidgetBridge>(() => ({
+    ...bridge,
+    edges: {
+      startLoading: () => { bus.start(); bridge.edges.startLoading(); },
+      stopLoading:  () => { bus.stop();  bridge.edges.stopLoading();  },
+    },
+  }), [bridge, bus]);
+
   return (
-    <FusedWidgetBridgeContext.Provider value={bridge}>
-      <RenderNode node={config} />
-      {children}
-    </FusedWidgetBridgeContext.Provider>
+    <LoadingBusContext.Provider value={bus}>
+      <FusedWidgetBridgeContext.Provider value={trackedBridge}>
+        <RenderNode node={config} />
+        {children}
+      </FusedWidgetBridgeContext.Provider>
+    </LoadingBusContext.Provider>
   );
 }

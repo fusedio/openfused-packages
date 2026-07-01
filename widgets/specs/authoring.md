@@ -114,6 +114,23 @@ This rule is also surfaced in the schema itself — the `style` prop's descripti
 into `components.json` from `_universal.ts`) carries it, so an agent reading the catalog sees
 it without reading this spec.
 
+### Common mistake: object instead of string
+
+`style` **must be a CSS string**, not a JavaScript/React `CSSProperties` object.
+
+```jsonc
+// ✅ correct
+{ "style": "display: flex; gap: 16px; flex-direction: row" }
+
+// ❌ wrong — crashes parseStyle (TypeError: style.split is not a function)
+{ "style": { "display": "flex", "gap": "16px", "flexDirection": "row" } }
+```
+
+The renderer now coerces the object at the render choke-point so the widget doesn't
+black-screen, but the coercion is a safety net — always author the string form.
+Convert camelCase properties to kebab-case: `flexDirection` → `flex-direction`,
+`backgroundColor` → `background-color`.
+
 ---
 
 ## Layout
@@ -219,6 +236,31 @@ field store and broadcasts **on submit** (a descendant `button`), not while typi
 Unlike the Fused application, charts/tables inside a form update **on submit**, not live
 as you type — Fused has no client DuckDB to re-query mid-edit. Same config, same final
 result, different timing ([`catalog.md`](./catalog.md); [`widgets/form.md`](./widgets/form.md)).
+
+**When to use `form` vs bare inputs.** Bare inputs (text-input, slider, dropdown outside
+a form) broadcast their value to the param store on every change, triggering a server
+re-resolve on each keystroke or slider tick. For cheap local queries that's fine; for
+**expensive UDF calls** (network requests, large dataset scans, slow APIs) use `form`:
+
+```jsonc
+// ✅ expensive UDF — wrap controls in form so the UDF only runs on "Analyze"
+{
+  "type": "form",
+  "props": { "submitLabel": "Analyze" },
+  "children": [
+    { "type": "text-input",  "props": { "param": "address", … } },
+    { "type": "slider",      "props": { "param": "travel_time_min", … } },
+    { "type": "dropdown",    "props": { "param": "mode", … } }
+  ]
+}
+
+// ✅ cheap DuckDB filter — bare inputs are fine, live re-query is instant
+{ "type": "dropdown", "props": { "param": "year", … } }
+```
+
+Without a `form`, typing a single character in a text-input fires a full UDF round-trip.
+For geocode + isochrone + Overture-style pipelines that run 5-15 s, that produces
+overlapping in-flight requests and a frozen UI.
 
 ---
 

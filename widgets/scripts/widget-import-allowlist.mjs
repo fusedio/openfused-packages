@@ -49,6 +49,9 @@ export const KNOWN_PARENT_PREFIXES = [
   "static-bridge",
   "data-store",
   "render",
+  // Ref-counted loading bus (LoadingBusContext) extracted from render.tsx to break
+  // the render → registry → form → render import cycle; form.tsx subscribes to it.
+  "loading-bus",
   "css",
   "session",
   "parley",
