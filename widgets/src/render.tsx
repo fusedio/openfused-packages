@@ -53,7 +53,16 @@ const ALLOWED_PROPS: Record<string, string[]> = allowedPropsMap;
 //     `harvestInitialParams` (data-store.ts) reads `props.comments` (and accepts
 //     `props.__comments`) off ANY node, incl. non-`canvas` roots, so they are
 //     valid on nodes whose per-type schema doesn't declare them.
-const ALWAYS_ALLOWED = new Set(["_queryId", "style", "comments", "__comments"]);
+const ALWAYS_ALLOWED = new Set([
+  "_queryId",
+  "style",
+  "comments",
+  "__comments",
+  // `refreshInterval` is a universal data-source prop (a live-dashboard poll on
+  // any data-bound node; harvested by `collectRefreshIntervals`, not a
+  // per-component authored prop) — allowed everywhere like `_queryId`.
+  "refreshInterval",
+]);
 
 // --------------------------------------------------------------- node + props
 export interface UINode {
@@ -75,13 +84,15 @@ export interface UINode {
 // exactly as before.
 function BoundNode({
   queryId,
+  refreshInterval,
   children,
 }: {
   queryId: string;
+  refreshInterval?: number;
   children: React.ReactNode;
 }): React.ReactElement {
   return (
-    <JsonUiBindingContext.Provider value={{ queryId }}>
+    <JsonUiBindingContext.Provider value={{ queryId, refreshInterval }}>
       {children}
     </JsonUiBindingContext.Provider>
   );
@@ -231,7 +242,17 @@ function NodeInner({
 
   const queryId = props._queryId;
   if (typeof queryId === "string" && queryId !== "") {
-    return <BoundNode queryId={queryId}>{withWarning}</BoundNode>;
+    // Thread `refreshInterval` alongside `_queryId` so SDK 0.4.0's
+    // `useDuckDbSqlQuery` (which reads it off `useJsonUiBinding()`) can drive its
+    // live-refresh poll. Without this the store's timer refetches but the hook
+    // never re-reads, so the node never repaints.
+    const refreshInterval =
+      typeof props.refreshInterval === "number" ? props.refreshInterval : undefined;
+    return (
+      <BoundNode queryId={queryId} refreshInterval={refreshInterval}>
+        {withWarning}
+      </BoundNode>
+    );
   }
   return withWarning;
 }

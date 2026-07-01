@@ -426,6 +426,17 @@ export class WidgetDataStore {
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
 
   /**
+   * Output-change subscribers (the SDK's `bridge.udfs.subscribeOutput` channel).
+   * A timer-driven refetch updates `this.data` internally, but the SDK
+   * `useDuckDbSqlQuery` hook only re-reads when this fires — so `tick()` calls
+   * `notifyOutputs()` after each interval refetch to make live nodes repaint.
+   * Fired coarsely (every subscriber on any tick): the store keys by qid, not by
+   * UDF name, and a spurious re-read is a cheap cached `ensureFresh` (its qid is
+   * fresh → returns the updated rows without a new POST).
+   */
+  private readonly outputSubscribers = new Set<() => void>();
+
+  /**
    * Consecutive refetch-failure count per interval qid. Drives the backoff
    * delay in `scheduleTimer`; reset to 0 (deleted) by a successful
    * `applyResponse`. A manual param/write-driven failure does NOT reset it —
@@ -454,7 +465,7 @@ export class WidgetDataStore {
       this.hidden = false;
       // Resume: refetch every interval qid once immediately, then reschedule.
       for (const qid of Object.keys(this.refreshIntervals)) this.forced.add(qid);
-      void this.refetchStale();
+      void this.refetchStale().then(() => this.notifyOutputs());
       for (const qid of Object.keys(this.refreshIntervals)) this.scheduleTimer(qid);
     }
   };
@@ -958,6 +969,26 @@ export class WidgetDataStore {
     if (this.disposed || this.hidden) return;
     this.forced.add(qid);
     await this.refetchStale();
+    // The refetch updated `this.data` in place; nudge the SDK hooks to re-read
+    // it (they don't observe the store directly) so live nodes actually repaint.
+    this.notifyOutputs();
     if (!this.disposed && !this.hidden) this.scheduleTimer(qid);
+  }
+
+  /**
+   * Register an output-change listener (wired to `bridge.udfs.subscribeOutput`).
+   * Fired after every interval refetch so a subscribed `useDuckDbSqlQuery`
+   * re-reads the freshly-resolved rows. Returns an unsubscribe fn.
+   */
+  subscribeOutput(cb: () => void): () => void {
+    this.outputSubscribers.add(cb);
+    return () => {
+      this.outputSubscribers.delete(cb);
+    };
+  }
+
+  /** Fire every output subscriber (over a copy, so a mid-notify unsubscribe is safe). */
+  private notifyOutputs(): void {
+    for (const cb of [...this.outputSubscribers]) cb();
   }
 }

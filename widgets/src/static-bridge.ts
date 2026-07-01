@@ -212,7 +212,12 @@ export function createStaticBridge(
   return {
     params,
     udfs: {
-      subscribeOutput: () => unsubscribe,
+      // Interval-refetch re-render channel: the store fires these after each
+      // timer-driven refetch so a subscribed `useDuckDbSqlQuery` re-reads the
+      // freshly-resolved rows (the hook does not observe the store directly).
+      // The UDF-name arg is ignored — the store notifies coarsely (see
+      // `notifyOutputs`); a spurious re-read is a cheap cached `ensureFresh`.
+      subscribeOutput: (_udfName, cb) => store.subscribeOutput(cb),
       // The `{{udf.col}}` grammar / select default snapshot is
       // best-effort-deferred for v0 — return undefined so callers fall back.
       getOutputSnapshot: () => undefined,
