@@ -623,61 +623,60 @@ export class WidgetDataStore {
   /**
    * Coalesced single-flight re-resolve. Computes the set of stale qids, the
    * union of which is the `only:` list, and POSTs the FULL current snapshot of
-   * ALL depMap params. One POST per param-change burst:
-   *   - if a fetch for the EXACT current ALL-params snapshot is already in
-   *     flight, await it (coalesce);
-   *   - otherwise abort any older in-flight fetch (it was for a stale snapshot)
-   *     and start a new one.
-   * Stale responses are discarded by comparing the snapshot key at resolve time
-   * against the latest snapshot (AbortController + identity guard).
+   * ALL depMap params. One POST per param-change burst.
+   *
+   * Every pass re-reads the CURRENT live snapshot and bases both the
+   * supersede decision AND the fetch body on it (never on a snapshot captured
+   * at entry). This is what keeps a param change that lands DURING an await from
+   * being clobbered:
+   *   - in-flight covers the CURRENT params (same snapKey) → coalesce (await it)
+   *     and loop again: a qid forced stale mid-flight may remain unresolved, or
+   *     params may have changed during the await, so re-decide against live
+   *     state rather than returning;
+   *   - in-flight is for a DIFFERENT snapshot than the LIVE one → it is stale
+   *     relative to current params → supersede (abort) and fetch fresh;
+   *   - nothing stale → return (the drained/covering fetch already covered us,
+   *     so no redundant POST).
+   * A NEWER fetch for the current params is NEVER aborted (its snapKey equals
+   * the live snapKey → coalesced, not superseded). Stale responses are also
+   * discarded by the snapshot-identity guard in `runFetch`.
    */
   private async refetchStale(): Promise<void> {
-    const fullSnapshot = this.params.getSnapshotMany(this.allParamNames);
-    const snapKey = snapshotKey(fullSnapshot);
+    for (;;) {
+      const fullSnapshot = this.params.getSnapshotMany(this.allParamNames);
+      const snapKey = snapshotKey(fullSnapshot);
 
-    // Coalesce: an in-flight fetch for the identical snapshot may already cover
-    // us. Await it, then FALL THROUGH to recompute the stale set rather than
-    // returning — because that fetch's `only` list was fixed before we ran, a
-    // qid forced stale mid-flight (a timer tick during a param-driven resolve)
-    // was NOT in it and is still unresolved. After the await, `runFetch`'s
-    // finally has cleared `this.inflight` (it was that fetch), so the supersede
-    // block is skipped and `computeStaleQids()` runs: an ordinary second reader
-    // the in-flight DID cover finds an empty stale set and returns via the guard
-    // below (no redundant POST); only the uncovered forced qid keeps it
-    // non-empty and gets a single follow-up fetch. No loop — a completed fetch
-    // clears `forced` for the qids it covered.
-    // Drain any in-flight fetch(es) for THIS snapshot first (coalesce). A loop,
-    // not a single await, so a follow-up fetch a concurrent caller may have
-    // already started for the same snapshot is also awaited — preserving the
-    // single-flight invariant (we never run a parallel fetch alongside one for
-    // the identical snapshot).
-    while (this.inflight && this.inflight.snapKey === snapKey) {
-      await this.inflight.promise;
+      if (this.inflight) {
+        if (this.inflight.snapKey === snapKey) {
+          // The in-flight fetch is for the CURRENT params — coalesce onto it.
+          // Loop again afterwards: it may not have covered a qid forced stale
+          // mid-flight, or params may have moved during the await.
+          await this.inflight.promise;
+          continue;
+        }
+        // The in-flight fetch is for a DIFFERENT snapshot than the live params
+        // → it is stale → supersede it. (Never reached for a fetch matching the
+        // live snapKey, so a newer fetch for the current params is safe.)
+        this.inflight.controller.abort();
+        this.inflight = null;
+      }
+
+      // Both the `only:` list and the body params derive from the SAME live
+      // snapshot read this pass, so they can never disagree.
+      const staleQids = this.computeStaleQids();
+      if (staleQids.length === 0) return;
+
+      const controller = new AbortController();
+      const promise = this.runFetch(
+        snapKey,
+        fullSnapshot,
+        staleQids,
+        controller.signal,
+      );
+      this.inflight = { snapKey, controller, promise };
+      await promise;
+      return;
     }
-    if (this.inflight) {
-      // Supersede: a newer snapshot aborts the older in-flight fetch. Its
-      // response (if it still arrives) is ignored by the snapshot-identity guard.
-      this.inflight.controller.abort();
-      this.inflight = null;
-    }
-
-    // Recompute the stale set against the snapshot we're about to send so the
-    // `only:` list matches the body's params exactly. In the ordinary coalesce
-    // case (a reader the drained fetch already covered) this is empty and we
-    // return; only a qid forced stale mid-flight (not in that fetch's `only`)
-    // survives here and gets a single follow-up fetch.
-    const staleQids = this.computeStaleQids();
-    if (staleQids.length === 0) return;
-
-    const controller = new AbortController();
-    const promise = this.runFetch(
-      snapKey,
-      fullSnapshot,
-      staleQids,
-      controller.signal,
-    );
-    this.inflight = { snapKey, controller, promise };
-    await promise;
   }
 
   private computeStaleQids(): string[] {

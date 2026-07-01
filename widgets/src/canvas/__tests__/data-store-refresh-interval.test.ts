@@ -730,14 +730,18 @@ describe("WidgetDataStore — coalesce race", () => {
   function deferredFetch() {
     const calls: {
       only: string[];
+      params: Record<string, unknown>;
+      signal: AbortSignal | undefined;
       resolve: (body: unknown) => void;
     }[] = [];
     const fn = vi.fn((_url: string, init: RequestInit) => {
-      const only = JSON.parse(init.body as string).only as string[];
+      const body = JSON.parse(init.body as string);
       return new Promise((res) => {
         calls.push({
-          only,
-          resolve: (body: unknown) => res(jsonResponse(body)),
+          only: body.only as string[],
+          params: body.params as Record<string, unknown>,
+          signal: init.signal ?? undefined,
+          resolve: (b: unknown) => res(jsonResponse(b)),
         });
       });
     });
@@ -826,5 +830,53 @@ describe("WidgetDataStore — coalesce race", () => {
 
     expect(calls).toHaveLength(1); // still exactly one POST — no redundant fetch
     expect((await store.ensureFresh("q0")).rows).toEqual([{ v: 9 }]);
+  });
+
+  it("does NOT abort a newer fetch started for changed params during a drain", async () => {
+    const { fn, calls } = deferredFetch();
+    vi.stubGlobal("fetch", fn);
+
+    const params = createParamsStore();
+    const store = new WidgetDataStore({
+      data: { q0: { columns: ["v"], rows: [{ v: 0 }] } },
+      depMap: { region: ["q0"] },
+      resolveUrl: "/data",
+      config: { type: "metric", props: { sql: "SELECT $region", _queryId: "q0" } },
+      harvestedParams: { region: "us" },
+      params,
+    });
+
+    // Reader 1 sets params S1 (region=eu) and starts a fetch (parked in flight).
+    params.set("region", "eu");
+    const p1 = store.ensureFresh("q0");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].params).toEqual({ region: "eu" });
+
+    // Reader 2 coalesces onto S1 (same live params) and parks in the drain loop.
+    const p2 = store.ensureFresh("q0");
+    expect(calls).toHaveLength(1); // coalesced, no new fetch
+
+    // Params change to S2 (region=fr) and a NEWER refetch for S2 starts while
+    // S1 is still in flight — S1 (≠ live S2) is superseded/aborted; S2 starts.
+    params.set("region", "fr");
+    const p3 = store.ensureFresh("q0");
+    expect(calls).toHaveLength(2);
+    expect(calls[1].params).toEqual({ region: "fr" });
+    expect(calls[0].signal?.aborted).toBe(true); // S1 superseded
+    expect(calls[1].signal?.aborted).toBe(false); // S2 is the current fetch
+
+    // Resolve S1 (aborted → ignored). Reader 2's drain loops, re-reads LIVE
+    // params (S2), sees the in-flight S2 matches → coalesces, does NOT abort it.
+    calls[0].resolve({ data: { q0: { columns: ["v"], rows: [{ v: 1 }] } }, errors: {} });
+    await p1;
+    await Promise.resolve();
+    expect(calls[1].signal?.aborted).toBe(false); // S2 STILL not aborted
+    expect(calls).toHaveLength(2); // no spurious extra fetch
+
+    // S2 completes normally and its rows win.
+    calls[1].resolve({ data: { q0: { columns: ["v"], rows: [{ v: 2 }] } }, errors: {} });
+    await Promise.all([p2, p3]);
+    expect(calls[1].signal?.aborted).toBe(false);
+    expect((await store.ensureFresh("q0")).rows).toEqual([{ v: 2 }]);
   });
 });
