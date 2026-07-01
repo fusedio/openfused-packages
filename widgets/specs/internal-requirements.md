@@ -142,8 +142,10 @@ without a model turn:
   queries read through the data store's freshness check; UDF queries are no-ops;
   `template.render` does best-effort local `$param` substitution. The `params` sub-bridge is
   the *one* genuinely reactive piece.
-  - **The `udfs` namespace default is and stays a no-op stub** (`requestReexecute: () =>
-    {}`, `getOutputSnapshot: () => undefined`, `subscribeOutput: () => unsubscribe`). The
+  - **The `udfs` namespace default is a near-no-op stub** (`requestReexecute: () =>
+    {}`, `getOutputSnapshot: () => undefined`) — **except `subscribeOutput`, which is
+    wired to the data store** (`store.subscribeOutput`) so the interval-refetch timer can
+    wake the SDK hook to re-read (§9.1). The
     one component that needs a real `udfs` — `task-board` (its **write** channel) — gets it
     from a **host-injected, general per-name, full-privilege, local executor** (not
     restricted to the reserved mutate ref), never from `createStaticBridge` itself. The
@@ -174,6 +176,17 @@ ones (no timer). See `spec/ui/data/data.md` for the authoring contract.
   `refetchStale()` path — so single-flight coalescing, `only:`-scoping, and supersede-abort
   all apply unchanged. Every successful resolve resets that qid's clock (the next tick lands a
   full interval after the most recent fetch, timer- or param-driven).
+- **Re-render channel (`notifyOutputs`).** A tick updates `this.data` in place, but the SDK
+  `useDuckDbSqlQuery` hook does **not** observe the store — it re-reads only when the bridge's
+  `udfs.subscribeOutput` fires. So `tick()` calls `notifyOutputs()` **after** `refetchStale()`
+  resolves, firing every listener registered via `subscribeOutput` (the static bridge wires
+  `udfs.subscribeOutput → store.subscribeOutput`); the SDK hook then bumps its fetch key,
+  re-reads `ensureFresh` (already fresh → no extra POST), and repaints. Also fired after the
+  visibility-resume refetch. Notification is **coarse** — every subscriber on any tick (the
+  store keys by `_queryId`, not by UDF name) — which is safe because a spurious re-read is a
+  cached `ensureFresh`. **The renderer must also thread `refreshInterval` into the
+  `JsonUiBindingContext`** alongside `_queryId` (SDK 0.4.0's hook reads it there); without
+  both the binding thread and this notify, the timer refetches but the node never repaints.
 - **Visibility:** a `visibilitychange` listener pauses all timers while hidden and, on return
   to visible, does one immediate refetch of every interval qid before resuming the schedule.
 - **Failure:** a failed refetch keeps the **last-good rows visible** (does not blank) and backs

@@ -74,6 +74,11 @@ rows resolve by id, not by re-running SQL client-side:
 - The component's `useDuckDbSqlQuery` reads the binding context, picks up the id, and
   threads it into the bridge's SQL query call. The static bridge resolves
   that id against the server-injected rows (§4) — it ignores the SQL text entirely.
+- The binding wrapper **also threads the node's `props.refreshInterval`** (ms, when a
+  finite number) into the same context, alongside `queryId`. This is what the SDK
+  hook reads to participate in live refresh; a node with no `refreshInterval` gets
+  `undefined` and never live-refreshes. The recurring refetch itself is driven by the
+  data store's timer (§4), not the hook.
 - This is the port of the Fused application's query-id binding, done
   at render time only for stamped nodes rather than by wrapping every registered
   renderer.
@@ -93,8 +98,13 @@ contract-level summary; the exhaustive invariants live in
 
 - **Static bridge** (`createStaticBridge({ store, params })`). A `FusedWidgetBridge`
   whose `sql.query(_sql, opts)` is an async read through the data store —
-  `await store.ensureFresh(opts?.queryId)` — and whose UDF queries are no-ops,
-  `template.render` does best-effort local `$param` substitution, and
+  `await store.ensureFresh(opts?.queryId)`. `udfs.execute` is the event-triggered
+  write seam (a `button` `executor`; wired only when an `execUrl` is passed), and
+  `udfs.subscribeOutput` is the **live-refresh re-render channel** — it registers the
+  callback with the store (`store.subscribeOutput`) so the store's interval timer can
+  wake the SDK hook to re-read (see the data store below). `getOutputSnapshot` /
+  `requestReexecute` stay no-ops. `template.render` does best-effort local `$param`
+  substitution, and
   `resolveVfsFilenames` returns a nominal filename for every requested ref (so the SDK
   preprocessing reaches `sql.query` instead of stalling, and an override-only `$param`
   change still changes `processedSql` and re-fires the query effect). The `params`
@@ -122,6 +132,17 @@ contract-level summary; the exhaustive invariants live in
   render). The `await` is what keeps the SDK hook's `loading` flag true through a
   refetch. First paint is aligned with the server resolve by `harvestInitialParams`
   (pre-order harvest of input `param`/`defaultValue` + the `__comments` seed).
+  **Live refresh (`refreshInterval`).** The store harvests each node's
+  `refreshInterval` (`collectRefreshIntervals`, keyed by `_queryId`) and, once
+  `start()`ed, runs a per-qid `setTimeout` that force-marks the qid stale and drives
+  the same coalesced refetch (paused while the page is hidden; exponential backoff on
+  failure, keeping last-good rows). Because the SDK `useDuckDbSqlQuery` hook does **not**
+  observe the store directly, a refetch that only updated `this.data` would never
+  repaint — so after each tick the store calls `notifyOutputs()`, firing the
+  `subscribeOutput` listeners the hook registered through the bridge; that bumps the
+  hook's fetch key, it re-reads `ensureFresh` (now fresh, so no extra POST), and the
+  node repaints. Notification is coarse (every subscriber on any tick — the store keys
+  by qid, not UDF name); a spurious re-read is a cheap cached read.
 - **Action sink** (`ActionSinkContext`, `type ActionSink = (action, terminal) =>
   boolean | Promise<boolean>`). An optional host-provided press handler installed above
   `RenderTree`. When present it takes **precedence** over both the session and the
@@ -148,8 +169,10 @@ path ever `.parse()`s** with it — the schemas exist only for the build-time ge
 - The renderer additionally **soft-warns** on unrecognized *props* of a KNOWN type:
   each node's authored prop names are checked against a build-time-baked per-type
   allow-set (`generated/allowed-props.json`, the keys of each widget's sanitized
-  Draft-07 propsSchema — see [`catalog.md`](./catalog.md)), minus the exemptions
-  `_queryId` (planner-injected binding id) and `style` (coerced generically). Any extra
+  Draft-07 propsSchema — see [`catalog.md`](./catalog.md)), minus a small always-allowed
+  set: `_queryId` (planner-injected binding id), `style` (coerced generically),
+  `refreshInterval` (universal live-refresh poll, §3/§4), and the `comments`/`__comments`
+  seeds. Any extra
   renders a visible amber advisory (`.ofw-warning`, `role="alert"`) **alongside** the
   widget — the widget still renders with whatever it recognized; this is a warning, not
   a hard gate, and the **browser is authoritative** for what the live bundle dropped. A

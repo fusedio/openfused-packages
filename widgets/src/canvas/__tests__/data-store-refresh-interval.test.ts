@@ -209,6 +209,50 @@ describe("WidgetDataStore — interval-refetch timer", () => {
     store.dispose();
   });
 
+  it("notifies output subscribers after each tick (the re-render channel)", async () => {
+    // A timer refetch updates `this.data` in place; the SDK `useDuckDbSqlQuery`
+    // hook does not observe the store directly, so it re-reads only when the
+    // `subscribeOutput` channel fires. Without this notify the store fetched
+    // fresh rows but the node never repainted (the interval-refetch bug).
+    vi.useFakeTimers();
+    stubVisibility();
+    let value = 1;
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        data: { q0: { columns: ["v"], rows: [{ v: value++ }] } },
+        errors: {},
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = new WidgetDataStore({
+      data: { q0: { columns: ["v"], rows: [{ v: 0 }] } },
+      resolveUrl: "/data",
+      config: { type: "metric", props: { _queryId: "q0", refreshInterval: 5000 } },
+      params: createParamsStore(),
+    });
+    const onOutput = vi.fn();
+    const unsub = store.subscribeOutput(onOutput);
+    store.start();
+
+    // start() neither fetches nor notifies immediately.
+    expect(onOutput).not.toHaveBeenCalled();
+
+    // A tick refetches AND notifies (after the refetch) so the hook re-reads.
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onOutput).toHaveBeenCalledTimes(1);
+    expect((await store.ensureFresh("q0")).rows).toEqual([{ v: 1 }]);
+
+    // Unsubscribe → the next tick still fetches but no longer notifies.
+    unsub();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onOutput).toHaveBeenCalledTimes(1);
+
+    store.dispose();
+  });
+
   it("ticks two qids independently at their own cadences", async () => {
     vi.useFakeTimers();
     stubVisibility();
