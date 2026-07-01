@@ -201,6 +201,78 @@ export function collectConfigQueryIds(config: unknown): string[] {
 }
 
 /**
+ * Minimum refetch interval (ms). A 1s floor guardrails against per-tick Lambda
+ * cost on deployed / shared dashboards: an author-supplied value below this is
+ * clamped up rather than honored verbatim.
+ */
+export const MIN_REFRESH_INTERVAL_MS = 1000;
+
+/**
+ * Harvest `{queryId -> intervalMs}` from a widget config, mirroring the
+ * tree-walk of `collectConfigQueryIds` but recording each node's (and each
+ * map/fused-map layer's) `refreshInterval` keyed by its `_queryId`.
+ *
+ * `refreshInterval` is author-authored — a trust boundary. Only a finite
+ * `number > 0` yields an entry; a value in `(0, MIN_REFRESH_INTERVAL_MS)`
+ * clamps up to the floor; everything else (missing, `<= 0`, `NaN`, non-number)
+ * produces no entry, so those queries get no timer. Same defensive tree-walk as
+ * `collectConfigQueryIds` (non-object nodes / odd props / non-array
+ * children/layers/nodes are skipped, not thrown).
+ */
+export function collectRefreshIntervals(
+  config: unknown,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  const normalize = (v: unknown): number | undefined => {
+    if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return undefined;
+    return v < MIN_REFRESH_INTERVAL_MS ? MIN_REFRESH_INTERVAL_MS : v;
+  };
+  const record = (qid: unknown, interval: unknown): void => {
+    if (typeof qid !== "string" || qid === "") return;
+    const ms = normalize(interval);
+    if (ms !== undefined) out[qid] = ms;
+  };
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (!node || typeof node !== "object") return;
+    const rec = node as Record<string, unknown>;
+    const props =
+      rec.props && typeof rec.props === "object"
+        ? (rec.props as Record<string, unknown>)
+        : {};
+    record(props._queryId, props.refreshInterval);
+    // map / fused-map: each data layer is stamped on the layer, not the node.
+    if (rec.type === "map" || rec.type === "fused-map") {
+      const layers = props.layers;
+      if (Array.isArray(layers)) {
+        for (const layer of layers) {
+          if (layer && typeof layer === "object") {
+            const l = layer as Record<string, unknown>;
+            record(l._queryId, l.refreshInterval);
+          }
+        }
+      }
+    }
+    // children: a list of nodes, or (defensively) a single node object.
+    if (Array.isArray(rec.children)) rec.children.forEach(visit);
+    else if (rec.children && typeof rec.children === "object")
+      visit(rec.children);
+    // canvas: per-node widget subtrees live under props.nodes[].widget.
+    if (rec.type === "canvas" && Array.isArray(props.nodes)) {
+      for (const cn of props.nodes) {
+        if (cn && typeof cn === "object")
+          visit((cn as Record<string, unknown>).widget);
+      }
+    }
+  };
+  visit(config);
+  return out;
+}
+
+/**
  * Comment-loss guard for the agent push loop (json-ui-comments.md §4–5).
  *
  * On every agent `widget push` the page rebuilds its params store and reseeds
@@ -315,6 +387,13 @@ export class WidgetDataStore {
   private readonly allParamNames: string[];
 
   /**
+   * Per-qid refetch interval (ms), harvested from the config and restricted to
+   * the qids THIS store tracks. Consumed by the interval-refetch timer (next
+   * task); a qid absent here has no timer.
+   */
+  private readonly refreshIntervals: Record<string, number>;
+
+  /**
    * Per-qid: the snapshot KEY (stable string) the current rows were resolved
    * with. Seeded from `harvestedParams` so the first mount's default broadcasts
    * don't look stale.
@@ -368,6 +447,16 @@ export class WidgetDataStore {
     this.qidToParams = qidToParams;
     this.allParamNames = [...allNames].sort();
 
+    // Harvest refetch intervals, restricted to the qids this store owns (the
+    // qidToParams keys) — the canvas per-node store must not own another node's
+    // intervals, matching the queryIds isolation enforced above.
+    const allIntervals = collectRefreshIntervals(this.config);
+    const refreshIntervals: Record<string, number> = {};
+    for (const qid of Object.keys(qidToParams)) {
+      if (qid in allIntervals) refreshIntervals[qid] = allIntervals[qid];
+    }
+    this.refreshIntervals = refreshIntervals;
+
     // Seed each qid's snapshot from the harvested defaults the initial server
     // resolve used. The snapshot key is computed over the qid's OWN params only
     // (restricted to harvested values), matching what `currentSnapshotFor`
@@ -378,6 +467,15 @@ export class WidgetDataStore {
         this.restrictToQid(qid, harvested),
       );
     }
+  }
+
+  /**
+   * The harvested refetch interval (ms) for a qid this store owns, or
+   * `undefined` when the qid has no configured interval (→ no timer). Consumed
+   * by the interval-refetch timer (next task).
+   */
+  refreshIntervalFor(qid: string): number | undefined {
+    return this.refreshIntervals[qid];
   }
 
   /** Build `{name: value}` over a qid's params, reading from a source map. */
