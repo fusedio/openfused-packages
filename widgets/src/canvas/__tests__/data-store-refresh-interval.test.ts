@@ -715,3 +715,116 @@ describe("createCanvasRuntime — lifecycle", () => {
     expect(store.getSnapshotFiltered("region", ["n1"])).toBe("eu");
   });
 });
+
+describe("WidgetDataStore — coalesce race", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  /**
+   * A fetch stub that never resolves on its own: each call is parked, and the
+   * test resolves calls by index. Captures the POST body's `only` per call.
+   */
+  function deferredFetch() {
+    const calls: {
+      only: string[];
+      resolve: (body: unknown) => void;
+    }[] = [];
+    const fn = vi.fn((_url: string, init: RequestInit) => {
+      const only = JSON.parse(init.body as string).only as string[];
+      return new Promise((res) => {
+        calls.push({
+          only,
+          resolve: (body: unknown) => res(jsonResponse(body)),
+        });
+      });
+    });
+    return { fn, calls };
+  }
+
+  it("re-resolves a forced qid that coalesced onto a non-covering in-flight fetch", async () => {
+    vi.useFakeTimers();
+    stubVisibility();
+    const { fn, calls } = deferredFetch();
+    vi.stubGlobal("fetch", fn);
+
+    // Two param-free interval qids → the same (empty) snapshot key, so a second
+    // refetch coalesces onto the first's in-flight promise. Different intervals
+    // so A's timer fires (and parks its fetch) before B's tick lands.
+    const store = new WidgetDataStore({
+      data: {
+        a: { columns: ["v"], rows: [{ v: 0 }] },
+        b: { columns: ["v"], rows: [{ v: 0 }] },
+      },
+      resolveUrl: "/data",
+      config: {
+        type: "canvas",
+        props: {
+          nodes: [
+            { widget: { type: "metric", props: { _queryId: "a", refreshInterval: 3000 } } },
+            { widget: { type: "metric", props: { _queryId: "b", refreshInterval: 5000 } } },
+          ],
+        },
+      },
+      params: createParamsStore(),
+    });
+    store.start();
+
+    // A's timer fires → forces A stale, starts a resolve parked in flight
+    // (covers only [a]).
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].only).toEqual(["a"]);
+
+    // While A is in flight, B's timer fires (t=5000): forces B stale and calls
+    // refetchStale, which sees the same empty snapshot and coalesces onto A's
+    // promise. B is NOT in A's `only`.
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(calls).toHaveLength(1); // coalesced — no new fetch yet
+
+    // Resolve A's fetch → the coalesced B path falls through, sees B still stale,
+    // and starts a second fetch scoped to [b] in the SAME cycle.
+    calls[0].resolve({ data: { a: { columns: ["v"], rows: [{ v: 1 }] } }, errors: {} });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(calls).toHaveLength(2);
+    expect(calls[1].only).toEqual(["b"]);
+
+    calls[1].resolve({ data: { b: { columns: ["v"], rows: [{ v: 2 }] } }, errors: {} });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect((await store.ensureFresh("a")).rows).toEqual([{ v: 1 }]);
+    expect((await store.ensureFresh("b")).rows).toEqual([{ v: 2 }]);
+
+    store.dispose();
+  });
+
+  it("two concurrent reads of the same already-covered qid coalesce into one fetch", async () => {
+    const { fn, calls } = deferredFetch();
+    vi.stubGlobal("fetch", fn);
+
+    const params = createParamsStore();
+    const store = new WidgetDataStore({
+      data: { q0: { columns: ["v"], rows: [{ v: 0 }] } },
+      depMap: { region: ["q0"] },
+      resolveUrl: "/data",
+      config: { type: "metric", props: { sql: "SELECT $region", _queryId: "q0" } },
+      harvestedParams: { region: "us" },
+      params,
+    });
+
+    // One param change makes q0 stale; two readers race for it.
+    params.set("region", "eu");
+    const p1 = store.ensureFresh("q0");
+    const p2 = store.ensureFresh("q0");
+    expect(calls).toHaveLength(1); // single-flight: the second coalesced
+
+    calls[0].resolve({ data: { q0: { columns: ["v"], rows: [{ v: 9 }] } }, errors: {} });
+    await Promise.all([p1, p2]);
+
+    expect(calls).toHaveLength(1); // still exactly one POST — no redundant fetch
+    expect((await store.ensureFresh("q0")).rows).toEqual([{ v: 9 }]);
+  });
+});

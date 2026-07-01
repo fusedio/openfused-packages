@@ -635,21 +635,37 @@ export class WidgetDataStore {
     const fullSnapshot = this.params.getSnapshotMany(this.allParamNames);
     const snapKey = snapshotKey(fullSnapshot);
 
-    // Coalesce: an in-flight fetch for the identical snapshot already covers us.
-    if (this.inflight && this.inflight.snapKey === snapKey) {
+    // Coalesce: an in-flight fetch for the identical snapshot may already cover
+    // us. Await it, then FALL THROUGH to recompute the stale set rather than
+    // returning — because that fetch's `only` list was fixed before we ran, a
+    // qid forced stale mid-flight (a timer tick during a param-driven resolve)
+    // was NOT in it and is still unresolved. After the await, `runFetch`'s
+    // finally has cleared `this.inflight` (it was that fetch), so the supersede
+    // block is skipped and `computeStaleQids()` runs: an ordinary second reader
+    // the in-flight DID cover finds an empty stale set and returns via the guard
+    // below (no redundant POST); only the uncovered forced qid keeps it
+    // non-empty and gets a single follow-up fetch. No loop — a completed fetch
+    // clears `forced` for the qids it covered.
+    // Drain any in-flight fetch(es) for THIS snapshot first (coalesce). A loop,
+    // not a single await, so a follow-up fetch a concurrent caller may have
+    // already started for the same snapshot is also awaited — preserving the
+    // single-flight invariant (we never run a parallel fetch alongside one for
+    // the identical snapshot).
+    while (this.inflight && this.inflight.snapKey === snapKey) {
       await this.inflight.promise;
-      return;
     }
-
-    // Supersede: a newer snapshot aborts the older in-flight fetch. Its response
-    // (if it still arrives) is ignored by the snapshot-identity guard below.
     if (this.inflight) {
+      // Supersede: a newer snapshot aborts the older in-flight fetch. Its
+      // response (if it still arrives) is ignored by the snapshot-identity guard.
       this.inflight.controller.abort();
       this.inflight = null;
     }
 
     // Recompute the stale set against the snapshot we're about to send so the
-    // `only:` list matches the body's params exactly.
+    // `only:` list matches the body's params exactly. In the ordinary coalesce
+    // case (a reader the drained fetch already covered) this is empty and we
+    // return; only a qid forced stale mid-flight (not in that fetch's `only`)
+    // survives here and gets a single follow-up fetch.
     const staleQids = this.computeStaleQids();
     if (staleQids.length === 0) return;
 
