@@ -10,6 +10,8 @@
     "types": ["node"],
     "lib": ["ES2022"]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts"]
+  // Tests are type-checked too (not excluded) so the editor services src/**/*.test.ts
+  // via this project instead of an inferred default; they import from "vitest"
+  // explicitly, so no extra global types are needed.
+  "include": ["src/**/*.ts"]
 }
