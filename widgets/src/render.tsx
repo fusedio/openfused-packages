@@ -64,6 +64,15 @@ const ALWAYS_ALLOWED = new Set([
   "refreshInterval",
 ]);
 
+// Passthrough container types: raw-HTML-style components that declare NO own
+// props (only universal `style`, see widgets/div.tsx) and exist purely to group
+// children. They tolerate ARBITRARY author-supplied props — documentation labels
+// like `title`/`description` are common — so the unrecognized-prop check is
+// skipped entirely for them (a third state beyond "unknown type" and "known type
+// with a strict allow-set"). Keep in lockstep with `_PASSTHROUGH_TYPES` in
+// src/fused/agent_core/widgets/validate.py.
+const PASSTHROUGH_TYPES = new Set(["div"]);
+
 // --------------------------------------------------------------- node + props
 export interface UINode {
   type: string;
@@ -168,6 +177,8 @@ function unrecognizedProps(
   type: string,
   props: Record<string, unknown>,
 ): string[] {
+  // Passthrough container → accepts any prop, never warn.
+  if (PASSTHROUGH_TYPES.has(type)) return [];
   const allowed = ALLOWED_PROPS[type];
   // No entry for this type → treat as all-allowed (best-effort, don't warn).
   if (!allowed) return [];
