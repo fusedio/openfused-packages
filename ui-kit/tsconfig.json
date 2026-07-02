@@ -10,6 +10,9 @@
     "esModuleInterop": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+  // Tests are type-checked too (not excluded) so the editor services
+  // src/**/*.test.tsx via this project instead of an inferred default. The
+  // jest-dom matcher augmentation (src/vitest-jest-dom.d.ts) is picked up by the
+  // src/**/*.ts glob so `toHaveAttribute` etc. type-check.
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
 }
