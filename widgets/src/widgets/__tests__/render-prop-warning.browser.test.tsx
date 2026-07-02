@@ -89,4 +89,14 @@ describe("renderer prop warning", () => {
     expect(host.querySelectorAll(".ofw-unknown")).toHaveLength(1);
     expect(host.querySelector(".ofw-warning")).toBeNull();
   });
+
+  it("does not warn on arbitrary props of a passthrough container type (div)", () => {
+    // `div` declares no own props (only universal `style`) and is a raw-HTML
+    // passthrough container — author-supplied documentation labels like
+    // `title`/`description` must not trigger the advisory.
+    render({ type: "div", props: { title: "x", description: "y" } });
+    expect(host.querySelector(".ofw-warning")).toBeNull();
+    // The div still renders (it is NOT the unknown placeholder).
+    expect(host.querySelector(".ofw-unknown")).toBeNull();
+  });
 });

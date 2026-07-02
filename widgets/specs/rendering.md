@@ -176,7 +176,11 @@ path ever `.parse()`s** with it — the schemas exist only for the build-time ge
   renders a visible amber advisory (`.ofw-warning`, `role="alert"`) **alongside** the
   widget — the widget still renders with whatever it recognized; this is a warning, not
   a hard gate, and the **browser is authoritative** for what the live bundle dropped. A
-  type with no allow-set entry is treated as all-allowed (best-effort, no warning). No
+  type with no allow-set entry is treated as all-allowed (best-effort, no warning).
+  **Passthrough container types** (`div`) are likewise exempt: they declare no own
+  props (only universal `style`) and are raw-HTML-style wrappers that intentionally
+  tolerate arbitrary author-supplied props (e.g. documentation labels like
+  `title`/`description`), so they never warn. No
   `.parse()` is involved — the check is a plain key-set difference.
 
 ## 5a. Loading states — every data-bound display widget shows a skeleton
