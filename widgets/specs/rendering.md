@@ -240,7 +240,8 @@ the widget render path respects its intent (no heavy deps in the bundle).
   react-simple-code-editor technique) so edits show live highlighting, with the
   gutter-matched padding that keeps the caret aligned when numbered. It is the
   *edit surface only* — the host owns save/concurrency (in flow via
-  `InlineEditor`'s `renderEdit` hook, `spec/app/write-path.md` §1.5).
+  `InlineEditor`'s `renderEdit` hook; that host save/write-path spec lives in
+  `fusedio/flow`).
 
 **shiki is imported lazily, inside the highlight load — never at module load** —
 so even the app bundles it as a code-split chunk, and importing these modules
