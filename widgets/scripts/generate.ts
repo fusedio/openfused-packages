@@ -4,14 +4,22 @@
 // For each entry in `componentDefs` (the barrel ./src/widgets walks ./components):
 //   • run Zod 4's `z.toJSONSchema(def.props, {target:'draft-07', io:'input',
 //     reused:'inline', unrepresentable:'any'})` (REAL zod here — NOT the render
-//     stub) to get raw JSON Schema, then sanitize() it — used only for the LINT
-//     check below; the per-type schema files are no longer emitted.
+//     stub) to get raw JSON Schema, then sanitize() it.
 //   • contribute one entry to `components.json` = { version, components:
-//     [{type, hasChildren, isInput: !!def.writesParam, props: string[]}],
-//     generatedFrom: 'packages/widgets/src/widgets' }, sorted. `props` is the
-//     sorted list of allowed prop names (keys of the sanitized propsSchema
-//     .properties). The Python side reads it for SUPPORTED_COMPONENTS /
-//     INPUT_COMPONENTS / allowed-prop validation.
+//     [{type, hasChildren, isInput: !!def.writesParam, props: string[],
+//     propsSchema: {...}}], generatedFrom: 'packages/widgets/src/widgets' },
+//     sorted. `props` is the sorted list of allowed prop names (keys of the
+//     sanitized propsSchema.properties). `propsSchema` is a per-prop map
+//     trimmed to the value-relevant keys (`type`, `enum`, `minimum`,
+//     `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, and for arrays
+//     `items.type`/`items.enum`) — no `additionalProperties`, `description`,
+//     or `$ref` noise. The Python side reads `props` for SUPPORTED_COMPONENTS
+//     / INPUT_COMPONENTS / allowed-prop validation, and `propsSchema` for the
+//     advisory value-type/enum/range check. NOTE: the trim intentionally
+//     drops `anyOf`/`oneOf` combinators, which sanitize.ts deliberately
+//     preserves for union-typed props (e.g. `value`/`y`) — such props get an
+//     empty `propsSchema` entry and are simply left unchecked, consistent
+//     with the fail-open/advisory design (no crash, no false positive).
 //
 // TWO artifacts are emitted:
 //   1. `components.json` → OUTPUT_DIR (default committed
@@ -105,6 +113,34 @@ interface ComponentManifestEntry {
   hasChildren: boolean;
   isInput: boolean;
   props: string[];
+  propsSchema: Record<string, Record<string, unknown>>;
+}
+
+// Value-relevant keys to keep from a sanitized per-prop JSON Schema entry.
+const VALUE_SCHEMA_KEYS = [
+  "type",
+  "enum",
+  "minimum",
+  "maximum",
+  "exclusiveMinimum",
+  "exclusiveMaximum",
+] as const;
+
+function trimPropSchema(propSchema: unknown): Record<string, unknown> {
+  if (!propSchema || typeof propSchema !== "object") return {};
+  const src = propSchema as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of VALUE_SCHEMA_KEYS) {
+    if (key in src) out[key] = src[key];
+  }
+  if (src.items && typeof src.items === "object") {
+    const items = src.items as Record<string, unknown>;
+    const trimmedItems: Record<string, unknown> = {};
+    if ("type" in items) trimmedItems.type = items.type;
+    if ("enum" in items) trimmedItems.enum = items.enum;
+    if (Object.keys(trimmedItems).length > 0) out.items = trimmedItems;
+  }
+  return out;
 }
 
 async function main(): Promise<void> {
@@ -147,11 +183,17 @@ async function main(): Promise<void> {
 
     const allowedProps = Object.keys(props).sort((a, b) => a.localeCompare(b));
 
+    const trimmedPropsSchema: Record<string, Record<string, unknown>> = {};
+    for (const propName of allowedProps) {
+      trimmedPropsSchema[propName] = trimPropSchema(props[propName]);
+    }
+
     manifest.push({
       type,
       hasChildren: def.hasChildren ?? false,
       isInput: writesParam,
       props: allowedProps,
+      propsSchema: trimmedPropsSchema,
     });
   }
 

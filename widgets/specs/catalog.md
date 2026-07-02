@@ -199,10 +199,18 @@ The generator (run via `pnpm --filter @fusedio/widgets generate`) walks
 ```
 
 - The `components` array is sorted by `type` (deterministic, stable, agent-visible). Each
-  entry is `{type, hasChildren, isInput, props}`, where `isInput = !!def.writesParam` and
+  entry is `{type, hasChildren, isInput, props, propsSchema}`, where `isInput = !!def.writesParam`,
   `props` is the sorted list of **allowed prop names** — the keys of the sanitized Draft-07
-  `propsSchema.properties` for that component. `props` lets the Python side surface an
-  advisory "ignored prop" signal without a hard render.
+  `propsSchema.properties` for that component — and `propsSchema` is a per-prop **trimmed**
+  schema (`type`, `enum`, `minimum`/`maximum`/`exclusiveMinimum`/`exclusiveMaximum`, plus
+  `items.type`/`items.enum` for array props). `props` lets the Python side surface an advisory
+  "ignored prop" signal without a hard render; `propsSchema` additionally lets it advisory-check
+  a node's *literal* prop values (wrong type, out of range, not an enum member) — see
+  `spec/ui/data/data.md` § Advisory resolve warnings in the main `fused` repo. A union-typed
+  prop (`anyOf`/`oneOf`, e.g. a chart's `value`/`y`) gets an empty `propsSchema` entry by
+  design and is left unchecked (fail-open). `components.json` remains the single source of
+  truth for this data — `allowed-props.json` stays name-only (browser only needs the prop-name
+  allow-set for its soft-warn, not the value schema).
 - `components.json` is the **hard type gate**: the Python side reads it via
   `importlib.resources` for `SUPPORTED_COMPONENTS` / `INPUT_COMPONENTS` (and now the per-type
   allowed-prop list). It is the package's only build-time-emitted contract and the only thing

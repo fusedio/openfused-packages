@@ -111,14 +111,21 @@ overrides the output path):
 
 This is the **hard type gate**: the Python side reads it via `importlib.resources` for
 `SUPPORTED_COMPONENTS` / `INPUT_COMPONENTS`. It is the package's only build-time-emitted
-contract and the only thing the runtime consumes from this package without JS.
+contract and the only thing the runtime consumes from this package without JS. Each
+component entry also carries `props` (allowed prop names) and a per-prop trimmed
+`propsSchema` (type/enum/min/max/exclusiveMin/exclusiveMax, plus array `items` type/enum);
+the Python side uses these for advisory-only checks (unrecognized props, malformed literal
+prop values) surfaced in `fused widget verify`'s `warnings` array — see `catalog.md` and,
+in the main `fused` repo, `spec/ui/data/data.md` § Advisory resolve warnings. This does not
+change the render-time gate below.
 
 ## 9. What it deliberately does **not** expose
 
 - **No MCP tools or resources.** Agents author widget *files*; humans *view* them. The MCP
   server reads `components.json` only.
 - **No render-time schema validation.** Prop zod schemas are build-time only; the sole
-  runtime gate is the `components.json` type membership check.
+  runtime gate is the `components.json` type membership check. (The Python-side advisory
+  value checks above are a separate, non-gating, non-render-time mechanism.)
 - **No `visible`/conditional-render or tab primitive** (would break app paste-compatibility).
 
 ---
